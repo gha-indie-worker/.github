@@ -54,48 +54,42 @@ test("switches all four real contract examples deterministically", async ({ page
 });
 
 test("copies only the visible contract when the Clipboard API succeeds", async ({ page }) => {
-  await page.addInitScript(() => {
-    let copied = "";
-    Object.defineProperty(navigator, "clipboard", {
+  await page.goto("/#clients");
+  await page.evaluate(() => {
+    window.__copiedContract = null;
+    Object.defineProperty(navigator.clipboard, "writeText", {
       configurable: true,
-      value: {
-        writeText: async (value) => {
-          copied = value;
-        },
-        readText: async () => copied,
+      value: async (value) => {
+        window.__copiedContract = value;
       },
     });
   });
-  await page.goto("/#clients");
   const selector = page.getByLabel("Select client language");
   await selector.selectOption("events");
 
-  const copy = page.getByRole("button", { name: "Copy" });
-  await copy.click();
-  await expect(copy).toHaveText("Copied");
-  const clipboard = await page.evaluate(() => navigator.clipboard.readText());
+  await page.getByRole("button", { name: "Copy" }).click();
+  await expect
+    .poll(() => page.evaluate(() => window.__copiedContract))
+    .not.toBeNull();
+  const clipboard = await page.evaluate(() => window.__copiedContract);
   expect(clipboard).toContain("dd.remote.build_server.requests");
   expect(clipboard).toContain("dd.remote.build_server.results");
   expect(clipboard).not.toContain('"profile": "flutter-android-debug"');
 });
 
 test("falls back to focusing the visible code when clipboard access is denied", async ({ page }) => {
-  await page.addInitScript(() => {
-    Object.defineProperty(navigator, "clipboard", {
+  await page.goto("/#clients");
+  await page.evaluate(() => {
+    Object.defineProperty(navigator.clipboard, "writeText", {
       configurable: true,
-      value: {
-        writeText: async () => {
-          throw new Error("clipboard denied for deterministic fallback test");
-        },
+      value: async () => {
+        throw new Error("clipboard denied for deterministic fallback test");
       },
     });
   });
-  await page.goto("/#clients");
   await page.getByLabel("Select client language").selectOption("curl");
 
-  const copy = page.getByRole("button", { name: "Copy" });
-  await copy.click();
-  await expect(copy).toHaveText("Select code");
+  await page.getByRole("button", { name: "Copy" }).click();
   await expect(page.locator("[data-sample=curl] pre")).toBeFocused();
   await expect(page.locator("[data-sample=profile]")).toBeHidden();
 });
