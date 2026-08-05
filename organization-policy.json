@@ -34,10 +34,20 @@
       "required_suffix": "-infra"
     },
     "integration_branch": "dev",
-    "policy_version": "2026-08-05.1",
+    "policy_version": "2026-08-05.2",
     "production_branch": "main_or_master_as_configured",
     "required_controls_take_precedence": true,
     "strategy": "gitflow"
+  },
+  "review_governance": {
+    "below_capacity_behavior": "block_and_open_governance_issue",
+    "dismiss_stale_approvals_on_head_change": true,
+    "exact_head_merge_required": true,
+    "minimum_distinct_human_write_identities": 2,
+    "minimum_distinct_write_approvals": 1,
+    "required_checks": "pass",
+    "routine_admin_bypass": "forbidden",
+    "self_approval_counts": false
   },
   "schema_version": 3
 }

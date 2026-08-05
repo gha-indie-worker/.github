@@ -1,0 +1,84 @@
+name: Validate organization governance
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/validate-organization-governance.yml'
+      - 'organization-policy.json'
+      - 'GOVERNANCE.md'
+      - 'README.md'
+      - 'docs/PROJECTS.md'
+      - 'docs/REVIEW_GOVERNANCE.md'
+      - 'scripts/validate_organization_policy.py'
+      - 'scripts/tests/test_validate_organization_policy.py'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/validate-organization-governance.yml'
+      - 'organization-policy.json'
+      - 'GOVERNANCE.md'
+      - 'README.md'
+      - 'docs/PROJECTS.md'
+      - 'docs/REVIEW_GOVERNANCE.md'
+      - 'scripts/validate_organization_policy.py'
+      - 'scripts/tests/test_validate_organization_policy.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: organization-governance-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          show-progress: false
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: '3.12'
+
+      - name: Compile and validate organization policy
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            scripts/validate_organization_policy.py \
+            scripts/tests/test_validate_organization_policy.py
+          python scripts/validate_organization_policy.py \
+            --json-output artifacts/organization-governance.json
+
+      - name: Run positive and negative policy tests
+        run: python -m unittest discover -s scripts/tests -v
+
+      - name: Reject whitespace and conflict markers
+        run: |
+          set -euo pipefail
+          git diff --check
+          if git grep -nE '^(<<<<<<< |=======|>>>>>>> )' -- \
+            organization-policy.json \
+            GOVERNANCE.md \
+            README.md \
+            docs \
+            scripts; then
+            echo 'git conflict marker detected' >&2
+            exit 1
+          fi
+
+      - name: Publish governance evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: gha-indie-worker-organization-governance-${{ github.sha }}
+          path: artifacts/organization-governance.json
+          if-no-files-found: error
+          retention-days: 30
