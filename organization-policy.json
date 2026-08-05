@@ -1,0 +1,43 @@
+{
+  "branching_and_delivery": {
+    "delivery": {
+      "deployment_authority": "gitops_controller",
+      "dev": "immutable_integration_artifact_then_infra_desired_state_change",
+      "github_actions_role": "validate_build_attest_and_orchestrate_promotion",
+      "main_or_master": "promote_tested_artifact_then_production_infra_desired_state_change",
+      "pull_requests": "ci_and_optional_ephemeral_preview",
+      "routine_imperative_production_deployment": "forbidden"
+    },
+    "dev_to_production_gate": {
+      "ai_confidence_operator": ">",
+      "ai_confidence_percent": 99.7,
+      "confidence_must_be_recorded_with_evidence": true,
+      "integration_release_deployment_migration_security_and_required_checks": "pass"
+    },
+    "feature_branch_base": "dev",
+    "feature_pull_request_target": "dev",
+    "feature_to_dev_gate": {
+      "ai_confidence_operator": ">",
+      "ai_confidence_percent": 99.1,
+      "confidence_must_be_recorded_with_evidence": true,
+      "tests_and_required_checks": "pass"
+    },
+    "hotfix_backmerge_target": "dev",
+    "infrastructure_repository": {
+      "owns": [
+        "environment desired state",
+        "GitOps controller configuration",
+        "deployment manifests and overlays",
+        "infrastructure as code",
+        "environment and promotion policy"
+      ],
+      "required_suffix": "-infra"
+    },
+    "integration_branch": "dev",
+    "policy_version": "2026-08-05.1",
+    "production_branch": "main_or_master_as_configured",
+    "required_controls_take_precedence": true,
+    "strategy": "gitflow"
+  },
+  "schema_version": 3
+}
