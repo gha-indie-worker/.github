@@ -53,8 +53,19 @@ test("switches all four real contract examples deterministically", async ({ page
   );
 });
 
-test("copies the visible contract and never copies a hidden sample", async ({ page, context }) => {
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+test("copies only the visible contract when the Clipboard API succeeds", async ({ page }) => {
+  await page.addInitScript(() => {
+    let copied = "";
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (value) => {
+          copied = value;
+        },
+        readText: async () => copied,
+      },
+    });
+  });
   await page.goto("/#clients");
   const selector = page.getByLabel("Select client language");
   await selector.selectOption("events");
@@ -68,12 +79,33 @@ test("copies the visible contract and never copies a hidden sample", async ({ pa
   expect(clipboard).not.toContain('"profile": "flutter-android-debug"');
 });
 
-test("preserves canonical organization, Project, and source links", async ({ page }) => {
+test("falls back to focusing the visible code when clipboard access is denied", async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async () => {
+          throw new Error("clipboard denied for deterministic fallback test");
+        },
+      },
+    });
+  });
+  await page.goto("/#clients");
+  await page.getByLabel("Select client language").selectOption("curl");
+
+  const copy = page.getByRole("button", { name: "Copy" });
+  await copy.click();
+  await expect(copy).toHaveText("Select code");
+  await expect(page.locator("[data-sample=curl] pre")).toBeFocused();
+  await expect(page.locator("[data-sample=profile]")).toBeHidden();
+});
+
+test("preserves canonical organization and source links", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator('a[href="https://github.com/gha-indie-worker"]')).toHaveCount(2);
   await expect(
     page.locator('a[href="https://github.com/gha-indie-worker/gha-indie-worker.rs"]'),
-  ).toHaveCount(2);
+  ).toHaveCount(3);
   await expect(page.locator('a[href^="http://"]')).toHaveCount(0);
 });
 
