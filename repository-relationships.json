@@ -1,0 +1,121 @@
+{
+  "$schema": "./repository-relationships.schema.json",
+  "audience": "public",
+  "generated": {
+    "complete_for_visibility": "public",
+    "generated_at": "2026-08-05T23:41:16Z",
+    "generator_version": "2026-08-04.1",
+    "inventory_digest": "sha256:15cf0a90ab9736cc87728d6419d1965185f6d3b7570d9abdf0ec77b06017bec6",
+    "managed_by": "ore-repository-relationship-rollout",
+    "omitted_repository_count": 0,
+    "private_repositories_omitted": false,
+    "source": "GitHub GraphQL repository inventory plus reviewed manual declarations"
+  },
+  "owner": {
+    "account_type": "organization",
+    "dotgithub_repository": "gha-indie-worker/.github",
+    "github_id": "312674563",
+    "linear_project": {
+      "id": "69d23e78-b898-49bf-bc84-d319bdaa2059",
+      "name": "github.com/gha-indie-worker",
+      "team_id": "eb8ab169-5afe-4b6f-9cab-3f2aa3e887dc",
+      "url": "https://linear.app/denman/project/githubcomgha-indie-worker-941d4102f7dc",
+      "workspace": "denman"
+    },
+    "login": "gha-indie-worker",
+    "mapping_id": "context:gha-indie-worker"
+  },
+  "private_registry": {
+    "contains_non_public_inventory": false,
+    "digest": "sha256:5cdd7fc817b8461026bd110a35e2b6e1c3cddc2c263ef343cd90e69c56a9cd9c",
+    "path": "owners/gha-indie-worker.json",
+    "repository": "approved-private-registry"
+  },
+  "relationships": [
+    {
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "kind": "github-owner-membership",
+          "source": "GitHub GraphQL repository inventory"
+        }
+      ],
+      "from": "gha-indie-worker/.github",
+      "id": "sha256:9cf3283114a02f8e35d118eb76bf1da1a3d9fa0fcf84165d8d50adb03d1bdae0",
+      "notes": "Organization .github policy and community-health defaults govern this sibling repository.",
+      "required": true,
+      "scope": "organization",
+      "status": "declared",
+      "to": "gha-indie-worker/gha-clone-server.rs",
+      "type": "governs"
+    },
+    {
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "kind": "github-owner-membership",
+          "source": "GitHub GraphQL repository inventory"
+        }
+      ],
+      "from": "gha-indie-worker/.github",
+      "id": "sha256:ace57de1c07f486b0dd5098b523408c615f5b06823a281fd80940b5051fb4888",
+      "notes": "Organization .github policy and community-health defaults govern this sibling repository.",
+      "required": true,
+      "scope": "organization",
+      "status": "declared",
+      "to": "gha-indie-worker/gha-indie-worker.rs",
+      "type": "governs"
+    }
+  ],
+  "repositories": [
+    {
+      "archived": false,
+      "default_branch": "main",
+      "fork": false,
+      "full_name": "gha-indie-worker/.github",
+      "github_id": "1324267033",
+      "name": ".github",
+      "owner": "gha-indie-worker",
+      "roles": [
+        "community-health",
+        "governance",
+        "relationship-registry"
+      ],
+      "source": "github-graphql-api",
+      "url": "https://github.com/gha-indie-worker/.github",
+      "visibility": "public"
+    },
+    {
+      "archived": false,
+      "default_branch": "main",
+      "fork": false,
+      "full_name": "gha-indie-worker/gha-clone-server.rs",
+      "github_id": "1322570532",
+      "name": "gha-clone-server.rs",
+      "owner": "gha-indie-worker",
+      "roles": [
+        "repository"
+      ],
+      "source": "github-graphql-api",
+      "url": "https://github.com/gha-indie-worker/gha-clone-server.rs",
+      "visibility": "public"
+    },
+    {
+      "archived": false,
+      "default_branch": "main",
+      "fork": false,
+      "full_name": "gha-indie-worker/gha-indie-worker.rs",
+      "github_id": "1322614813",
+      "name": "gha-indie-worker.rs",
+      "owner": "gha-indie-worker",
+      "roles": [
+        "repository"
+      ],
+      "source": "github-graphql-api",
+      "url": "https://github.com/gha-indie-worker/gha-indie-worker.rs",
+      "visibility": "public"
+    }
+  ],
+  "schema_version": 1,
+  "unresolved_hints": []
+}
