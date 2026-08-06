@@ -1,27 +1,39 @@
-<!-- BEGIN ORESOFTWARE MANAGED BRANCHING AND GITOPS POLICY -->
-## Branching and promotion evidence
+<!-- ore-org-baseline:begin -->
+## Summary
 
-**Change path** (select one):
-- [ ] Feature/fix/refactor/dependency branch -> `dev` (the integration branch)
-- [ ] `dev` -> `main`/`master` production promotion
-- [ ] Emergency `hotfix/*` -> production, with an immediate semantic merge back into `dev`
+Describe the behavior and intent, not only the files changed.
 
-**AI review confidence:** `____.__%`
+## Planning and dependencies
 
-**Threshold gate:**
-- [ ] For a PR into `dev`, confidence is strictly greater than **99.1%**
-- [ ] For a `dev` promotion into `main`/`master`, confidence is strictly greater than **99.7%**
+- Linear project or issue: [github.com/gha-indie-worker](https://linear.app/denman/project/githubcomgha-indie-worker-941d4102f7dc)
+- Related GitHub issues or pull requests:
+- Related repositories or external contracts:
 
-**Evidence:**
-- Acceptance criteria and linked work item:
-- Tests and required checks that passed:
-- Review scope, affected contracts, and repositories inspected:
-- Remaining uncertainty or known limitations:
-- Migration and deployment impact:
-- Exact immutable artifact SHA/digest being promoted:
-- Canonical `*-infra` desired-state PR/commit and target environment:
-- Rollback or roll-forward plan:
+## Risk, security, migration, and rollback
 
-- [ ] No branch protection, required review, security/compliance gate, or environment approval is being bypassed.
-- [ ] Deployment is represented in the canonical `*-infra` repository and reconciled through GitOps, or this PR documents an approved break-glass exception and immediate follow-up reconciliation.
-<!-- END ORESOFTWARE MANAGED BRANCHING AND GITOPS POLICY -->
+- User or operational impact:
+- Security/privacy impact and secret-handling review:
+- Migration or compatibility considerations:
+- Rollback or recovery approach:
+
+## Validation
+
+List exact commands, environments, and results. Include unit, integration, contract, build, and end-to-end evidence as applicable.
+
+## Conflict-resolution record
+
+- [ ] Remote state was fetched before editing and before pushing.
+- [ ] Concurrent work was preserved; no destructive operation or history rewrite was used.
+- [ ] Conflicts, if any, were resolved semantically using the merge base, both sides, 3–10 relevant commits, tests, contracts, linked work, and related repositories.
+- [ ] The complete worktree was scanned for unresolved conflict markers.
+- [ ] No `ours`/`theirs` side was accepted wholesale without conceptual review.
+
+## Final checklist
+
+- [ ] Focused commits and reviewable diff
+- [ ] Documentation and generated artifacts updated from authoritative sources
+- [ ] External Actions pinned to full commit SHAs
+- [ ] Explicit least-privilege workflow permissions and timeouts
+- [ ] No credentials, private data, or sensitive logs included
+- [ ] Authoritative remote branch/PR/check evidence verified
+<!-- ore-org-baseline:end -->
