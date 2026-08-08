@@ -4,6 +4,8 @@ Organization-wide GitHub, branching, review, agent, and delivery policy for `gha
 
 ## Planning and governance
 
+- [Native Windows and macOS runner fleet](NATIVE_RUNNER_FLEET.md)
+- [Native runner implementation status](docs/NATIVE_RUNNER_IMPLEMENTATION_STATUS.md)
 - [GitHub Project and Linear routing](docs/PROJECTS.md)
 - [Protected review capacity](docs/REVIEW_GOVERNANCE.md)
 - [Organization governance](GOVERNANCE.md)
@@ -14,6 +16,8 @@ Canonical planning surfaces:
 
 - GitHub Project: https://github.com/orgs/gha-indie-worker/projects/1
 - Linear project: https://linear.app/denman/project/githubcomgha-indie-worker-941d4102f7dc
+
+The native Windows/macOS program is tracked in Linear under DEN-2582 through DEN-2589. Its draft implementation stack covers secure admission, typed dispatch and profile binding, native host enrollment and exact scheduling, Apple Silicon macOS and Windows x64 hardening profiles, and mixed-OS inventory. Exact heads and validation runs are maintained in [the implementation status index](docs/NATIVE_RUNNER_IMPLEMENTATION_STATUS.md).
 
 The organization currently has two green standalone continuity promotions waiting for a distinct write-access reviewer: `gha-indie-worker/gha-clone-server.rs#3` and `gha-indie-worker/gha-indie-worker.rs#7`. Never weaken branch protection or count self-approval to merge them.
 
