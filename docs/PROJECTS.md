@@ -1,29 +1,54 @@
-<!-- org-project-routing:start -->
-# Project routing
+# Project tracking and issue routing
 
-- **GitHub organization:** [gha-indie-worker](https://github.com/gha-indie-worker)
-- **Canonical GitHub Project:** [gha-indie-worker-project](https://github.com/orgs/gha-indie-worker/projects/1) (project 1)
-- **Canonical Linear project:** [planning workspace](https://linear.app/denman/project/githubcomgha-indie-worker-941d4102f7dc)
-- **Organization documentation repository:** [gha-indie-worker/.github](https://github.com/gha-indie-worker/.github)
+The canonical GitHub planning surface for the organization is:
 
-## Source-of-truth boundaries
+- https://github.com/orgs/gha-indie-worker/projects/1
 
-GitHub is authoritative for repositories, commits, pull requests, reviews, CI checks, releases, deployable artifacts, and runtime evidence. Linear is authoritative for product planning, priorities, ownership, dependencies, milestones, and status reporting. The GitHub Project is the organization-level execution board and should contain the organization governance issue plus active program execution mirrors.
+The matching Linear planning surface is:
 
-## Current native-runner execution mirror
+- https://linear.app/denman/project/githubcomgha-indie-worker-941d4102f7dc
 
-- **GitHub tracker:** [gha-indie-worker.rs#15](https://github.com/gha-indie-worker/gha-indie-worker.rs/issues/15)
-- **Worker protocol PR:** [gha-indie-worker.rs#14](https://github.com/gha-indie-worker/gha-indie-worker.rs/pull/14)
-- **Fleet operating contract:** [Native Windows and macOS runner fleet](../NATIVE_RUNNER_FLEET.md)
-- **Linear parent:** [DEN-2582](https://linear.app/denman/issue/DEN-2582/gha-indie-worker-native-windows-and-macos-runner-program)
+## Native runner program
 
-Issue #15 is the durable board-ready checklist and evidence mirror for the native Windows/macOS program. It links the exact implementation head, hosted reference run, Linear work breakdown, and remaining native-host gates.
+The native Windows and macOS runner track is represented by:
 
-## Projects V2 mutation evidence
+- umbrella issue: DEN-2582;
+- enrollment and scheduling: DEN-2583;
+- Apple Silicon macOS pilot: DEN-2584;
+- Windows x64 pilot: DEN-2585;
+- cross-platform conformance: DEN-2586;
+- mixed-OS operations: DEN-2588;
+- runner profile catalog: DEN-2589;
+- executable GitHub tracker: https://github.com/gha-indie-worker/gha-indie-worker.rs/issues/15.
 
-Do not report a GitHub Project item, status, field, or iteration update as complete without authoritative Projects V2 evidence. At the time of the native-runner delivery on August 7, 2026, the available GitHub App surface could publish repository content, branches, pull requests, issues, and workflow evidence, but did not expose Projects V2 item/field mutation; the execution shell also had no usable `gh` binary. Issue #15 must be added and its fields synchronized by a Projects-capable runner or connector, then the resulting Project URL/item evidence must be recorded in GitHub and Linear.
+## Current execution mirror
 
-## Change and merge policy
+The board-ready execution stack is:
 
-Documentation branches must be reviewed through pull requests and merged after checks pass. Concurrent edits are reconciled semantically against the latest default branch: this managed routing block is regenerated while all unrelated prose outside the block is preserved. Do not resolve conflicts by blindly choosing one side.
-<!-- org-project-routing:end -->
+- secure workflow admission and canonical target bridge: https://github.com/gha-indie-worker/gha-indie-worker.rs/pull/16;
+- typed runner-target and dispatch-v2 profile binding: https://github.com/gha-indie-worker/gha-indie-worker.rs/pull/14;
+- native enrollment, attestation, exact scheduling, leases, replay, and host-state simulator: https://github.com/gha-indie-worker/gha-indie-worker.rs/pull/21;
+- Apple Silicon macOS hardening profile: https://github.com/gha-indie-worker/gha-indie-worker.rs/pull/17;
+- Windows x64 hardening profile: https://github.com/gha-indie-worker/gha-indie-worker.rs/pull/18;
+- authoritative mixed-OS inventory contract: https://github.com/gha-indie-worker/gha-indie-worker.rs/pull/19;
+- organization fleet and operating contract: https://github.com/gha-indie-worker/.github/pull/18.
+
+Exact heads, validation runs, canonical vocabulary, review order, and the production-readiness boundary are maintained in [NATIVE_RUNNER_IMPLEMENTATION_STATUS.md](NATIVE_RUNNER_IMPLEMENTATION_STATUS.md).
+
+Use issue #15 as the authoritative execution and evidence mirror until each item is placed on the GitHub Project with the required fields. The connected automation currently exposes no authoritative Projects V2 item/field write operation, so no direct board update should be claimed without successful evidence.
+
+## Issue fields
+
+When adding implementation issues to the GitHub Project, set:
+
+- `Status`: `Todo`, `In progress`, or the closest configured field value;
+- `Priority`: `High` for identity, scheduling, isolation, cleanup, or fleet-readiness work;
+- `Linear`: the relevant `DEN-*` identifier;
+- `Platform`: `Control plane`, `macOS`, `Windows`, `Cross-platform`, or `Operations`;
+- `Readiness`: `Contract`, `Lab`, `Pilot`, or `Production gate`.
+
+## Promotion rules
+
+Do not move a native-runner issue to `Done` merely because a hosted reference job passes. Completion requires the acceptance criteria in Linear and the organization fleet contract, including physical or independent host evidence where the issue requires it.
+
+All implementation pull requests remain drafts until independently reviewed. Do not self-approve, weaken branch protection, or use routine administrator bypass to advance this stack.
