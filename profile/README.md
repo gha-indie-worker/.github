@@ -9,9 +9,12 @@ GitHub owns code and delivery evidence; Linear owns planning and dependencies. T
 <!-- org-project-routing:end -->
 
 <!-- ore-org-baseline:begin -->
-This GitHub account maintains software, infrastructure, research, and supporting documentation under the [`gha-indie-worker`](https://github.com/gha-indie-worker) GitHub owner.
+## Planning and governance
 
-Planning and delivery context is tracked in [github.com/gha-indie-worker](https://linear.app/denman/project/githubcomgha-indie-worker-941d4102f7dc). Public contribution, security, and governance defaults are maintained in [`.github`](https://github.com/gha-indie-worker/.github).
+- Canonical Linear project: https://linear.app/denman/project/githubcomgha-indie-worker-941d4102f7dc
+- Organization defaults: https://github.com/gha-indie-worker/.github
+- Canonical agent policy: https://github.com/gha-indie-worker/.github/blob/main/agents.md
+- Security policy: https://github.com/gha-indie-worker/.github/security/policy
 
-Repository descriptions and repository-local documentation remain authoritative for each project. Do not infer production readiness, support commitments, or security guarantees from this profile alone.
+Repositories in this organization use semantic conflict resolution with 3–10 relevant prior commits when useful, full cross-repository context, pull-request delivery, and a hard automated-agent denylist for destructive or history-rewriting operations.
 <!-- ore-org-baseline:end -->
