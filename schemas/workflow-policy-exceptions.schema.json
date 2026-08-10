@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gha-indie-worker/.github/schemas/workflow-policy-exceptions.schema.json",
+  "title": "gha-indie-worker workflow governance exceptions",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "exceptions"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "exceptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule_id", "path", "owner", "rationale", "expires"],
+        "properties": {
+          "rule_id": {
+            "type": "string",
+            "pattern": "^GHW(00[0-9]|01[0-6])$"
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^\\.github/workflows/[^*]+\\.ya?ml$"
+          },
+          "job": {"type": "string", "minLength": 1},
+          "owner": {"type": "string", "minLength": 3},
+          "rationale": {"type": "string", "minLength": 12},
+          "expires": {"type": "string", "format": "date"}
+        }
+      }
+    }
+  }
+}

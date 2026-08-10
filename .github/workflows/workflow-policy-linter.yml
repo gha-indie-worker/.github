@@ -1,0 +1,102 @@
+name: Workflow governance linter
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/workflow-policy-linter.yml'
+      - 'workflow-policy.json'
+      - 'workflow-policy-exceptions.json'
+      - 'schemas/workflow-policy.schema.json'
+      - 'schemas/workflow-policy-exceptions.schema.json'
+      - 'scripts/workflow_policy_linter.py'
+      - 'scripts/workflow_policy/*.py'
+      - 'scripts/tests/test_workflow_policy_*.py'
+      - 'docs/WORKFLOW_POLICY_LINTER.md'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/workflow-policy-linter.yml'
+      - 'workflow-policy.json'
+      - 'workflow-policy-exceptions.json'
+      - 'schemas/workflow-policy.schema.json'
+      - 'schemas/workflow-policy-exceptions.schema.json'
+      - 'scripts/workflow_policy_linter.py'
+      - 'scripts/workflow_policy/*.py'
+      - 'scripts/tests/test_workflow_policy_*.py'
+      - 'docs/WORKFLOW_POLICY_LINTER.md'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: workflow-policy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          show-progress: false
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+          cache: ''
+
+      - name: Compile linter and tests
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            scripts/workflow_policy_linter.py \
+            scripts/workflow_policy/*.py \
+            scripts/tests/test_workflow_policy_*.py
+
+      - name: Run positive and adversarial policy tests
+        run: python -m unittest discover -s scripts/tests -p 'test_workflow_policy_*.py' -v
+
+      - name: Enforce policy on the canary workflow set
+        env:
+          POLICY_SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          python scripts/workflow_policy_linter.py \
+            --policy workflow-policy.json \
+            --exceptions workflow-policy-exceptions.json \
+            --repository gha-indie-worker/.github \
+            --source-sha "$POLICY_SOURCE_SHA" \
+            --format json \
+            --output artifacts/workflow-policy-report.json \
+            .github/workflows/workflow-policy-linter.yml \
+            .github/workflows/baseline-policy.yml \
+            .github/workflows/reusable-policy.yml \
+            .github/workflows/validate-organization-governance.yml
+          python scripts/workflow_policy_linter.py \
+            --policy workflow-policy.json \
+            --exceptions workflow-policy-exceptions.json \
+            --repository gha-indie-worker/.github \
+            --source-sha "$POLICY_SOURCE_SHA" \
+            --format sarif \
+            --output artifacts/workflow-policy-report.sarif \
+            .github/workflows/workflow-policy-linter.yml \
+            .github/workflows/baseline-policy.yml \
+            .github/workflows/reusable-policy.yml \
+            .github/workflows/validate-organization-governance.yml
+
+      - name: Publish exact-head policy evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: workflow-policy-${{ github.sha }}
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 30
