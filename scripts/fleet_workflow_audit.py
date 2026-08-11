@@ -27,6 +27,7 @@ FLEET_REPORT_SCHEMA = "gha-indie-worker.workflow-fleet-report.v1"
 DEFAULT_AFFILIATION = "owner,organization_member"
 DEFAULT_BATCH_SIZE = 12
 MAX_BATCH_SIZE = 25
+REQUEST_TIMEOUT_SECONDS = 60
 
 
 class FleetAuditError(RuntimeError):
@@ -81,7 +82,12 @@ def _run(
             capture_output=True,
             check=False,
             env=os.environ.copy(),
+            timeout=REQUEST_TIMEOUT_SECONDS,
         )
+    except subprocess.TimeoutExpired as error:
+        raise FleetAuditError(
+            f"{command[0]} API request exceeded {REQUEST_TIMEOUT_SECONDS} seconds"
+        ) from error
     except OSError as error:
         raise FleetAuditError(f"unable to execute {command[0]}: {error}") from error
     if completed.returncode != 0:
@@ -384,7 +390,17 @@ def audit_fleet(
     errors: list[FetchError] = []
     for start in range(0, len(selected), batch_size):
         batch = selected[start : start + batch_size]
-        snapshots, fetch_errors = source.fetch_workflows(batch)
+        try:
+            snapshots, fetch_errors = source.fetch_workflows(batch)
+        except FleetAuditError as error:
+            errors.append(
+                FetchError(
+                    f"<batch:{start}-{start + len(batch) - 1}>",
+                    "api",
+                    str(error),
+                )
+            )
+            continue
         errors.extend(fetch_errors)
         failed = {item.repository.casefold() for item in fetch_errors if item.repository != "<batch>"}
         for repository in batch:

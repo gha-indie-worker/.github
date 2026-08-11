@@ -106,6 +106,32 @@ class FleetWorkflowAuditTests(WorkflowPolicyTestCase):
         self.assertEqual(report["summary"]["fetch_errors"], 1)
         self.assertEqual(report["summary"]["repositories_scanned"], 2)
 
+    def test_batch_api_failure_is_recorded_and_later_batches_continue(self) -> None:
+        source = FakeSource()
+        calls = 0
+        original = source.fetch_workflows
+
+        def intermittent_fetch(repositories):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                from fleet_workflow_audit import FleetAuditError
+
+                raise FleetAuditError("fixture timeout")
+            return original(repositories)
+
+        source.fetch_workflows = intermittent_fetch
+        report = audit_fleet(
+            source,
+            self.policy,
+            scanner_source_sha="0" * 40,
+            include_archived=True,
+            batch_size=1,
+        )
+        self.assertFalse(report["summary"]["complete"])
+        self.assertEqual(report["summary"]["fetch_errors"], 1)
+        self.assertGreater(report["summary"]["repositories_scanned"], 0)
+
     def test_graphql_query_binds_default_branch_and_reads_only_workflow_blobs(self) -> None:
         head_query = build_head_query([repository("example/clean")])
         self.assertIn("defaultBranchRef", head_query)
