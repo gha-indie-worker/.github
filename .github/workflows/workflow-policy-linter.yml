@@ -9,6 +9,7 @@ on:
       - 'schemas/workflow-policy.schema.json'
       - 'schemas/workflow-policy-exceptions.schema.json'
       - 'scripts/workflow_policy_linter.py'
+      - 'scripts/fleet_workflow_audit.py'
       - 'scripts/workflow_policy/*.py'
       - 'scripts/tests/test_workflow_policy_*.py'
       - 'docs/WORKFLOW_POLICY_LINTER.md'
@@ -22,6 +23,7 @@ on:
       - 'schemas/workflow-policy.schema.json'
       - 'schemas/workflow-policy-exceptions.schema.json'
       - 'scripts/workflow_policy_linter.py'
+      - 'scripts/fleet_workflow_audit.py'
       - 'scripts/workflow_policy/*.py'
       - 'scripts/tests/test_workflow_policy_*.py'
       - 'docs/WORKFLOW_POLICY_LINTER.md'
@@ -56,6 +58,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m py_compile \
+            scripts/fleet_workflow_audit.py \
             scripts/workflow_policy_linter.py \
             scripts/workflow_policy/*.py \
             scripts/tests/test_workflow_policy_*.py

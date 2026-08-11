@@ -48,6 +48,23 @@ python scripts/workflow_policy_linter.py \
 
 When no workflow paths are supplied, the CLI examines `.github/workflows/*.yml` and `.yaml`. `--mode enforce` returns nonzero for any unsuppressed error. `--mode audit` returns zero while retaining `valid: false`; it inventories legacy violations but does not create a baseline or silently grandfather new findings.
 
+## Read-only fleet audit
+
+`scripts/fleet_workflow_audit.py` enumerates every repository visible to the authenticated GitHub CLI, resolves each default branch to a 40-character commit, and then fetches workflow blobs by that immutable commit in bounded GraphQL batches. It runs the same parser and policy without cloning or executing target repositories:
+
+```bash
+python scripts/fleet_workflow_audit.py \
+  --gh "$(command -v gh)" \
+  --scanner-source-sha "$(git rev-parse HEAD)" \
+  --include-archived \
+  --format json \
+  --output /tmp/workflow-fleet-report.json
+```
+
+The report binds the scanner commit as well as every repository commit and workflow blob identity, content digest, finding, fetch error, and observed API rate-limit state. A changed default branch, inaccessible blob, binary or oversized workflow, partial GraphQL response, disabled repository, or missing repository result is never silently called clean. Fetch errors make the run incomplete and nonzero unless a human deliberately selects `--allow-partial`; the report remains `complete=false` either way.
+
+The fleet driver uses only authenticated GitHub metadata/content reads. It does not dispatch, rerun, approve, enable, or execute Actions; billing-aware test dispatch remains a separate reviewed operation after the static report identifies a safe canary.
+
 ## Exact-head evidence
 
 The JSON report contains:

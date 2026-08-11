@@ -69,6 +69,54 @@ def _inline_map(value: str) -> dict[str, str]:
     return result
 
 
+def _contains_yaml_indirection(content: str) -> bool:
+    single = False
+    double = False
+    escaped = False
+    expression_depth = 0
+    previous_nonspace: str | None = None
+    index = 0
+    while index < len(content):
+        if not single and not double and content.startswith("${{", index):
+            expression_depth += 1
+            index += 3
+            continue
+        if expression_depth and content.startswith("}}", index):
+            expression_depth -= 1
+            index += 2
+            continue
+        character = content[index]
+        if escaped:
+            escaped = False
+            index += 1
+            continue
+        if character == "\\" and double:
+            escaped = True
+            index += 1
+            continue
+        if character == "'" and not double:
+            single = not single
+            index += 1
+            continue
+        if character == '"' and not single:
+            double = not double
+            index += 1
+            continue
+        if single or double or expression_depth or character not in {"&", "*", "!"}:
+            if not character.isspace():
+                previous_nonspace = character
+            index += 1
+            continue
+        following = content[index + 1] if index + 1 < len(content) else " "
+        if (previous_nonspace is None or previous_nonspace in {":", "[", "{", ",", "-"}) and (
+            following.isalnum() or following in {"_", "-"}
+        ):
+            return True
+        previous_nonspace = character
+        index += 1
+    return False
+
+
 def parse_workflow(text: str, path: str) -> WorkflowModel:
     model = WorkflowModel(path=path)
     lines = text.splitlines()
@@ -100,7 +148,7 @@ def parse_workflow(text: str, path: str) -> WorkflowModel:
 
         if content in {"---", "..."}:
             continue
-        if content.startswith(("&", "*", "!")) or "<<:" in content:
+        if _contains_yaml_indirection(content) or "<<:" in content:
             model.syntax_findings.append(
                 make_finding(
                     "GHW000",
@@ -126,7 +174,35 @@ def parse_workflow(text: str, path: str) -> WorkflowModel:
             key, value = parsed
             top_section = key
             if key == "on":
-                model.events.update(_inline_list(value))
+                if value.startswith("{"):
+                    model.syntax_findings.append(
+                        make_finding(
+                            "GHW000",
+                            path,
+                            number,
+                            "flow-style trigger maps require explicit review",
+                        )
+                    )
+                else:
+                    model.events.update(_inline_list(value))
+            elif key == "jobs" and value:
+                model.syntax_findings.append(
+                    make_finding(
+                        "GHW000",
+                        path,
+                        number,
+                        "flow-style jobs are not supported by the conservative parser",
+                    )
+                )
+            elif key == "env" and value:
+                model.syntax_findings.append(
+                    make_finding(
+                        "GHW000",
+                        path,
+                        number,
+                        "flow-style workflow env requires explicit review",
+                    )
+                )
             elif key == "permissions":
                 model.permissions_declared = True
                 if value:
@@ -213,6 +289,16 @@ def parse_workflow(text: str, path: str) -> WorkflowModel:
                 current_job.environment_lines.append(number)
             elif key == "secrets" and _unquote(value).lower() == "inherit":
                 current_job.secrets_inherit_lines.append(number)
+            elif key == "steps" and value:
+                model.syntax_findings.append(
+                    make_finding(
+                        "GHW000",
+                        path,
+                        number,
+                        "flow-style steps are not supported by the conservative parser",
+                        current_job.name,
+                    )
+                )
             continue
 
         if current_job_property == "runs-on" and indent >= 6 and content.startswith("- "):
@@ -266,5 +352,3 @@ def parse_workflow(text: str, path: str) -> WorkflowModel:
             current_step.with_values[parsed[0]] = _unquote(parsed[1])
 
     return model
-
-

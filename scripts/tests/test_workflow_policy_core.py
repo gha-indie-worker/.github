@@ -128,3 +128,31 @@ jobs:
             path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(WorkflowPolicyError, "deny_pull_request_target"):
                 load_policy(path)
+
+    def test_flow_jobs_and_trigger_maps_fail_closed(self) -> None:
+        workflow = """name: Hidden jobs
+on: {pull_request: {}}
+permissions: {}
+concurrency:
+  group: hidden
+  cancel-in-progress: true
+jobs: {attack: {runs-on: self-hosted, steps: [{run: echo unsafe}]}}
+"""
+        syntax = [item for item in self.lint(workflow) if item.rule_id == "GHW000"]
+        self.assertGreaterEqual(len(syntax), 2)
+
+    def test_anchor_after_mapping_key_fails_closed(self) -> None:
+        workflow = safe_workflow().replace(
+            "permissions:\n  contents: read",
+            "permissions: &privileges\n  contents: read",
+            1,
+        )
+        self.assertIn("GHW000", self.rule_ids(self.lint(workflow)))
+
+    def test_negated_github_expression_is_not_mistaken_for_yaml_tag(self) -> None:
+        workflow = safe_workflow().replace(
+            "    permissions:\n      contents: read",
+            "    if: ${{ !cancelled() }}\n    permissions:\n      contents: read",
+            1,
+        )
+        self.assertNotIn("GHW000", self.rule_ids(self.lint(workflow)))
