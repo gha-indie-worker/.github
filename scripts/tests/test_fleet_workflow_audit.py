@@ -135,12 +135,49 @@ class FleetWorkflowAuditTests(WorkflowPolicyTestCase):
     def test_graphql_query_binds_default_branch_and_reads_only_workflow_blobs(self) -> None:
         head_query = build_head_query([repository("example/clean")])
         self.assertIn("defaultBranchRef", head_query)
+        self.assertIn("isEmpty", head_query)
         source_sha = "1" * 40
         query = build_graphql_query([repository("example/clean")], [source_sha])
         self.assertIn('repository(owner: "example", name: "clean")', query)
         self.assertIn(f'object(expression: "{source_sha}:.github/workflows")', query)
         self.assertIn("isBinary text", query)
         self.assertNotIn("mutation", query.casefold())
+
+    def test_empty_repository_is_complete_without_inventing_a_source_sha(self) -> None:
+        calls = 0
+
+        def runner(command, **kwargs):
+            nonlocal calls
+            calls += 1
+            query = json.loads(kwargs["input"])["query"]
+            self.assertIn("FleetWorkflowHeads", query)
+            response = {
+                "data": {
+                    "r0": {
+                        "nameWithOwner": "example/empty",
+                        "isEmpty": True,
+                        "defaultBranchRef": None,
+                    },
+                    "rateLimit": {"cost": 1, "remaining": 4999, "resetAt": "fixture"},
+                }
+            }
+            return subprocess.CompletedProcess(command, 0, json.dumps(response), "")
+
+        source = GhFleetSource("gh-fixture", runner)
+        snapshots, errors = source.fetch_workflows([repository("example/empty")])
+        self.assertEqual(calls, 1)
+        self.assertEqual(errors, [])
+        snapshot = snapshots["example/empty"]
+        self.assertIsNone(snapshot.source_sha)
+        self.assertTrue(snapshot.empty_repository)
+        self.assertEqual(snapshot.workflows, ())
+
+        source.list_repositories = lambda _affiliation: [repository("example/empty")]
+        report = audit_fleet(source, self.policy, scanner_source_sha="0" * 40)
+        self.assertTrue(report["summary"]["complete"])
+        self.assertEqual(report["summary"]["empty_repositories"], 1)
+        self.assertIsNone(report["repositories"][0]["source_sha"])
+        self.assertTrue(report["repositories"][0]["empty_repository"])
 
     def test_gh_inventory_paginates_and_deduplicates_case_insensitively(self) -> None:
         payload = {

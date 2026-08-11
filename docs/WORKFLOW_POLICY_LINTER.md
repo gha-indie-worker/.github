@@ -61,7 +61,7 @@ python scripts/fleet_workflow_audit.py \
   --output /tmp/workflow-fleet-report.json
 ```
 
-The report binds the scanner commit as well as every repository commit and workflow blob identity, content digest, finding, fetch error, and observed API rate-limit state. A changed default branch, inaccessible blob, binary or oversized workflow, partial GraphQL response, disabled repository, or missing repository result is never silently called clean. Fetch errors make the run incomplete and nonzero unless a human deliberately selects `--allow-partial`; the report remains `complete=false` either way.
+The report binds the scanner commit as well as every repository commit and workflow blob identity, content digest, finding, fetch error, and observed API rate-limit state. A repository that GitHub proves is empty is recorded explicitly with `empty_repository: true` and `source_sha: null`; the scanner never invents a commit identity for it. A changed default branch, inaccessible blob, binary or oversized workflow, partial GraphQL response, disabled repository, or missing repository result is never silently called clean. Fetch errors make the run incomplete and nonzero unless a human deliberately selects `--allow-partial`; the report remains `complete=false` either way.
 
 The fleet driver uses only authenticated GitHub metadata/content reads. It does not dispatch, rerun, approve, enable, or execute Actions; billing-aware test dispatch remains a separate reviewed operation after the static report identifies a safe canary.
 

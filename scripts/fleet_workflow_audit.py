@@ -54,8 +54,9 @@ class WorkflowSource:
 
 @dataclass(frozen=True)
 class RepositorySnapshot:
-    source_sha: str
+    source_sha: str | None
     workflows: tuple[WorkflowSource, ...]
+    empty_repository: bool = False
 
 
 @dataclass(frozen=True)
@@ -137,6 +138,7 @@ class GhFleetSource:
         errors: list[FetchError] = []
         if head_graph_errors:
             errors.append(FetchError("<batch>", "head_graphql", head_graph_errors))
+        results: dict[str, RepositorySnapshot] = {}
         bound_repositories: list[Repository] = []
         source_shas: list[str] = []
         for index, repository in enumerate(repositories):
@@ -145,6 +147,18 @@ class GhFleetSource:
                 errors.append(FetchError(repository.name_with_owner, "repository", "missing repository data"))
                 continue
             remote_default = node.get("defaultBranchRef")
+            if node.get("isEmpty") is True:
+                if remote_default is not None:
+                    errors.append(
+                        FetchError(
+                            repository.name_with_owner,
+                            "default_branch",
+                            "empty repository unexpectedly has a default branch",
+                        )
+                    )
+                    continue
+                results[repository.name_with_owner] = RepositorySnapshot(None, (), True)
+                continue
             if not isinstance(remote_default, dict) or remote_default.get("name") != repository.default_branch:
                 errors.append(
                     FetchError(
@@ -168,14 +182,13 @@ class GhFleetSource:
             bound_repositories.append(repository)
             source_shas.append(source_sha)
         if not bound_repositories:
-            return {}, errors
+            return results, errors
 
         data, workflow_graph_errors = self._graphql(
             build_graphql_query(bound_repositories, source_shas)
         )
         if workflow_graph_errors:
             errors.append(FetchError("<batch>", "workflow_graphql", workflow_graph_errors))
-        results: dict[str, RepositorySnapshot] = {}
         for index, (repository, source_sha) in enumerate(
             zip(bound_repositories, source_shas, strict=True)
         ):
@@ -258,6 +271,7 @@ def build_head_query(repositories: Sequence[Repository]) -> str:
         selections.append(
             f"""r{index}: repository(owner: {owner}, name: {name}) {{
               nameWithOwner
+              isEmpty
               defaultBranchRef {{ name target {{ ... on Commit {{ oid }} }} }}
             }}"""
         )
@@ -320,10 +334,21 @@ def parse_workflow_entry(
 
 def audit_repository(
     repository: Repository,
-    source_sha: str,
+    source_sha: str | None,
     sources: Sequence[WorkflowSource],
     policy: Policy,
+    *,
+    empty_repository: bool = False,
 ) -> dict[str, object]:
+    if empty_repository:
+        if source_sha is not None or sources:
+            raise FleetAuditError(
+                f"empty repository {repository.name_with_owner} has commit or workflow inputs"
+            )
+    elif source_sha is None:
+        raise FleetAuditError(
+            f"non-empty repository {repository.name_with_owner} is missing an exact source SHA"
+        )
     findings: list[Finding] = []
     input_digests: dict[str, str] = {}
     blob_oids: dict[str, str] = {}
@@ -337,6 +362,7 @@ def audit_repository(
         "repository": repository.name_with_owner,
         "default_branch": repository.default_branch,
         "source_sha": source_sha,
+        "empty_repository": empty_repository,
         "archived": repository.archived,
         "disabled": repository.disabled,
         "visibility": repository.visibility,
@@ -411,13 +437,20 @@ def audit_fleet(
                 errors.append(FetchError(repository.name_with_owner, "workflow_tree", "repository result missing"))
                 continue
             reports.append(
-                audit_repository(repository, snapshot.source_sha, snapshot.workflows, policy)
+                audit_repository(
+                    repository,
+                    snapshot.source_sha,
+                    snapshot.workflows,
+                    policy,
+                    empty_repository=snapshot.empty_repository,
+                )
             )
 
     workflow_count = sum(int(item["summary"]["workflows"]) for item in reports)
     finding_count = sum(int(item["summary"]["findings"]) for item in reports)
     repositories_with_findings = sum(not bool(item["summary"]["valid"]) for item in reports)
     no_workflows = sum(int(item["summary"]["workflows"]) == 0 for item in reports)
+    empty_repositories = sum(bool(item["empty_repository"]) for item in reports)
     ordered_errors = sorted(errors, key=lambda item: (item.repository.casefold(), item.stage, item.message))
     return {
         "schema": FLEET_REPORT_SCHEMA,
@@ -438,6 +471,7 @@ def audit_fleet(
             "repositories_scanned": len(reports),
             "repositories_with_findings": repositories_with_findings,
             "repositories_without_workflows": no_workflows,
+            "empty_repositories": empty_repositories,
             "workflows_scanned": workflow_count,
             "findings": finding_count,
             "fetch_errors": len(ordered_errors),
