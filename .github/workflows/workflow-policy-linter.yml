@@ -11,7 +11,7 @@ on:
       - 'scripts/workflow_policy_linter.py'
       - 'scripts/fleet_workflow_audit.py'
       - 'scripts/workflow_policy/*.py'
-      - 'scripts/tests/test_workflow_policy_*.py'
+      - 'scripts/tests/test_*workflow*.py'
       - 'docs/WORKFLOW_POLICY_LINTER.md'
   push:
     branches:
@@ -25,7 +25,7 @@ on:
       - 'scripts/workflow_policy_linter.py'
       - 'scripts/fleet_workflow_audit.py'
       - 'scripts/workflow_policy/*.py'
-      - 'scripts/tests/test_workflow_policy_*.py'
+      - 'scripts/tests/test_*workflow*.py'
       - 'docs/WORKFLOW_POLICY_LINTER.md'
   workflow_dispatch:
 
@@ -61,10 +61,10 @@ jobs:
             scripts/fleet_workflow_audit.py \
             scripts/workflow_policy_linter.py \
             scripts/workflow_policy/*.py \
-            scripts/tests/test_workflow_policy_*.py
+            scripts/tests/test_*workflow*.py
 
       - name: Run positive and adversarial policy tests
-        run: python -m unittest discover -s scripts/tests -p 'test_workflow_policy_*.py' -v
+        run: python -m unittest discover -s scripts/tests -p 'test_*workflow*.py' -v
 
       - name: Enforce policy on the canary workflow set
         env:
