@@ -76,6 +76,19 @@ any unsuppressed finding remains. Artifact upload and code-scanning publication
 are left to the calling repository so its own permissions and retention policy
 remain explicit.
 
+Because the report directory is intentionally hidden, callers that publish the
+evidence with `actions/upload-artifact` must set `include-hidden-files: true`:
+
+```yaml
+- if: ${{ always() }}
+  uses: actions/upload-artifact@<40-character SHA>
+  with:
+    name: test-org-isolation-${{ github.sha }}
+    path: .test-org-isolation/
+    include-hidden-files: true
+    if-no-files-found: error
+```
+
 ## Local verification
 
 ```bash
