@@ -360,6 +360,14 @@ def test_scoped(value: str) -> bool:
     ) or any(lowered.endswith(tld) for tld in SAFE_TLDS)
 
 
+def name_contains_fragment(name: str, fragment: str) -> bool:
+    normalized = name.upper()
+    components = {item for item in re.split(r"[^A-Z0-9]+", normalized) if item}
+    if fragment in {"PAT", "PROD"}:
+        return fragment in components
+    return fragment in normalized
+
+
 def scan_text(
     repository: str, relative: str, source: str, policy: Policy
 ) -> list[Finding]:
@@ -389,11 +397,14 @@ def scan_text(
 
         for secret_name in SECRET_REFERENCE_RE.findall(line):
             upper = secret_name.upper()
-            if any(fragment in upper for fragment in policy.forbidden_secret_fragments):
+            if any(
+                name_contains_fragment(upper, fragment)
+                for fragment in policy.forbidden_secret_fragments
+            ):
                 rule = (
                     "TST009"
                     if any(
-                        item in upper
+                        name_contains_fragment(upper, item)
                         for item in ("PAT", "DEPLOY_KEY", "CROSS_ORG_WRITE")
                     )
                     else "TST003"
@@ -421,7 +432,7 @@ def scan_text(
             ):
                 findings.append(_finding("TST006", repository, relative, number, line))
             if any(
-                fragment in key
+                name_contains_fragment(key, fragment)
                 for fragment in ("PAT", "DEPLOY_KEY", "CROSS_ORG_WRITE_TOKEN")
             ):
                 findings.append(_finding("TST009", repository, relative, number, line))

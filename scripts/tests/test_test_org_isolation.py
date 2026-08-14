@@ -64,6 +64,8 @@ class TestOrgIsolationTests(unittest.TestCase):
                 "OUTBOUND_SEND_ENABLED": False,
                 "repository": "https://github.com/sample-test/isolation-canary",
                 "twilio": "synthetic-sdk-dependency-only",
+                "path": ".test-org-isolation/report.json",
+                "compat_mode": True,
             },
         )
         manifest_findings, manifest_digest = isolation.validate_manifest(
