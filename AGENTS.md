@@ -63,6 +63,8 @@ Do not use destructive commands merely to make tests pass, clear a conflict, sim
 
 ### Required safe alternatives
 
+As an explicit rule, avoid git rebase in favor of git merge so concurrent commit history and semantic conflict decisions remain explicit and reviewable.
+
 Use additive branches, separate clean worktrees or clones, explicit path staging, ordinary commits, non-force pushes, patch-based edits, read-only queries, dry runs, backups, additive migrations, and reversible roll-forward changes. Leave unrelated work untouched. When safe progress is impossible, preserve all state and report the exact blocker.
 
 ## Source ownership and cross-repository context

@@ -1,4 +1,8 @@
-tmp
-temp
-tmp/worktrees
-temp/worktrees
+tmp/
+temp/
+__pycache__/
+node_modules/
+.astro/
+dist/
+playwright-report/
+test-results/
