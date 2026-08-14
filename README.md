@@ -9,6 +9,7 @@ Organization-wide GitHub, branching, review, agent, and delivery policy for `gha
 - [Organization governance](GOVERNANCE.md)
 - [Branching and deployment](BRANCHING_AND_DEPLOYMENT.md)
 - [Repository boundaries](REPOSITORY_BOUNDARIES.md)
+- [Credential egress guard and incident runbook](docs/CREDENTIAL_EGRESS_GUARD.md)
 
 Canonical planning surfaces:
 

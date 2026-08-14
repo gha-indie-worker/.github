@@ -1,0 +1,71 @@
+name: Credential egress guard
+description: Scan Git, artifacts, or logs without printing matched credential values.
+
+inputs:
+  scope:
+    description: tracked, staged, introduced, paths, or history
+    required: false
+    default: introduced
+  policy:
+    description: Repository-local detector policy path
+    required: false
+    default: credential-egress-policy.json
+  base-ref:
+    description: Immutable base commit for introduced scope
+    required: false
+    default: ""
+  paths:
+    description: Newline-delimited artifact or log paths for paths scope
+    required: false
+    default: ""
+  history-depth:
+    description: Bounded commit count for explicit history incident scans
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Scan for credential egress
+      shell: bash
+      env:
+        GUARD_SCOPE: ${{ inputs.scope }}
+        GUARD_POLICY: ${{ inputs.policy }}
+        GUARD_BASE_REF: ${{ inputs.base-ref }}
+        GUARD_PATHS: ${{ inputs.paths }}
+        GUARD_HISTORY_DEPTH: ${{ inputs.history-depth }}
+      run: |
+        cd "$GITHUB_WORKSPACE"
+        args=(
+          --scope "$GUARD_SCOPE"
+          --root "$GITHUB_WORKSPACE"
+          --policy "$GUARD_POLICY"
+        )
+
+        case "$GUARD_SCOPE" in
+          introduced)
+            test -n "$GUARD_BASE_REF"
+            args+=(--base-ref "$GUARD_BASE_REF")
+            ;;
+          paths)
+            path_count=0
+            while IFS= read -r scan_path; do
+              test -n "$scan_path" || continue
+              args+=(--path "$scan_path")
+              path_count=$((path_count + 1))
+            done <<< "$GUARD_PATHS"
+            test "$path_count" -gt 0
+            ;;
+          history)
+            test -n "$GUARD_HISTORY_DEPTH"
+            args+=(--history-depth "$GUARD_HISTORY_DEPTH")
+            ;;
+          tracked|staged)
+            ;;
+          *)
+            echo "unsupported credential-egress scope" >&2
+            exit 2
+            ;;
+        esac
+
+        python3 "$GITHUB_ACTION_PATH/../scripts/credential_egress_guard.py" "${args[@]}"
