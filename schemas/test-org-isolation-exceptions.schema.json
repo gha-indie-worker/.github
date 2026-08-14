@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gha-indie-worker/.github/blob/main/schemas/test-org-isolation-exceptions.schema.json",
+  "title": "Test-organization isolation exceptions",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "exceptions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "exceptions": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "repository",
+          "path",
+          "rule_id",
+          "owner",
+          "rationale",
+          "review_url",
+          "expires"
+        ],
+        "properties": {
+          "repository": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "pattern": "^[^*?\\[\\]]+$"
+          },
+          "rule_id": {
+            "enum": [
+              "TST003",
+              "TST004",
+              "TST005",
+              "TST006",
+              "TST009"
+            ]
+          },
+          "owner": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 128
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 1024
+          },
+          "review_url": {
+            "type": "string",
+            "pattern": "^https://github\\.com/[^/]+/[^/]+/(pull|issues)/[0-9]+$"
+          },
+          "expires": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      }
+    }
+  }
+}
