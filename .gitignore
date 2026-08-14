@@ -4,3 +4,4 @@ tmp/worktrees
 temp/worktrees
 __pycache__/
 *.py[cod]
+.ruff_cache/
