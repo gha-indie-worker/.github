@@ -68,6 +68,22 @@ class TestOrgIsolationTests(unittest.TestCase):
                 "compat_mode": True,
             },
         )
+        self.write_json(
+            "contracts/schema.json",
+            {"properties": {"audience": {"type": "string"}}},
+        )
+        self.write_json(
+            "fixtures/actors.json",
+            {"actors": [{"subject": "user-a"}]},
+        )
+        self.write_text(
+            "deploy/docker-compose.yml",
+            "build:\n  context: ./kdc\nhostname: kdc.isolation-canary.invalid\n",
+        )
+        self.write_text(
+            ".github-hardening/proposed/example/.github/ISSUE_TEMPLATE/config.yml",
+            "contact_links:\n  - url: https://github.com/example/example\n",
+        )
         manifest_findings, manifest_digest = isolation.validate_manifest(
             self.root, REPOSITORY, self.policy
         )
@@ -75,7 +91,10 @@ class TestOrgIsolationTests(unittest.TestCase):
         self.assertEqual(manifest_findings, [])
         self.assertIsNotNone(manifest_digest)
         self.assertEqual(findings, [])
-        self.assertEqual(set(digests), {"config/test.json"})
+        self.assertEqual(
+            set(digests),
+            {"config/test.json", "deploy/docker-compose.yml"},
+        )
 
     def test_missing_or_permissive_manifest_fails_closed(self) -> None:
         findings, digest = isolation.validate_manifest(
@@ -205,7 +224,7 @@ class TestOrgIsolationTests(unittest.TestCase):
 
     def test_symlinked_inputs_are_not_followed(self) -> None:
         self.write_manifest()
-        outside = self.write_text("outside/unsafe.yml", "environment: production\n")
+        outside = self.write_text("deploy/unsafe.yml", "environment: production\n")
         link = self.root / "config" / "linked.yml"
         link.parent.mkdir(parents=True, exist_ok=True)
         link.symlink_to(outside)
@@ -213,7 +232,7 @@ class TestOrgIsolationTests(unittest.TestCase):
         self.assertNotIn("config/linked.yml", digests)
         self.assertEqual(
             [finding.path for finding in findings],
-            ["outside/unsafe.yml"],
+            ["deploy/unsafe.yml"],
         )
 
     def test_generated_report_directory_is_never_rescanned(self) -> None:

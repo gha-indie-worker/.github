@@ -38,6 +38,7 @@ SAFE_TLDS = (".invalid", ".test", ".example")
 IGNORED_DIRECTORIES = frozenset(
     {
         ".git",
+        ".github-hardening",
         ".hg",
         ".svn",
         ".test-org-isolation",
@@ -312,6 +313,39 @@ def validate_manifest(
     return [], digest_bytes(raw_bytes)
 
 
+def is_scan_candidate(root: Path, path: Path, policy: Policy) -> bool:
+    relative = path.relative_to(root)
+    parts = tuple(part.lower() for part in relative.parts)
+    name = path.name.lower()
+    if path.name in policy.exact_names:
+        return True
+    if len(parts) >= 3 and parts[:2] == (".github", "workflows"):
+        return True
+    if name == ".env" or name.startswith(".env.") or path.suffix.lower() == ".env":
+        return True
+    if set(parts[:-1]) & {
+        "config",
+        "deploy",
+        "infra",
+        "k8s",
+        "kubernetes",
+        "ops",
+        "terraform",
+    }:
+        return True
+    return any(
+        marker in name
+        for marker in (
+            "compose",
+            "config",
+            "deployment",
+            "kustomization",
+            "settings",
+            "values",
+        )
+    )
+
+
 def discover_inputs(root: Path, policy: Policy) -> list[Path]:
     inputs: list[Path] = []
     for current, directories, files in os.walk(root, followlinks=False):
@@ -333,7 +367,9 @@ def discover_inputs(root: Path, policy: Policy) -> list[Path]:
                 "test-org-isolation-policy.json",
             }:
                 continue
-            if path.suffix.lower() in policy.extensions or name in policy.exact_names:
+            if (
+                path.suffix.lower() in policy.extensions or name in policy.exact_names
+            ) and is_scan_candidate(root, path, policy):
                 if path.relative_to(root).as_posix() == policy.manifest_path:
                     continue
                 inputs.append(path)
@@ -355,9 +391,17 @@ def safe_host(host: str) -> bool:
 
 def test_scoped(value: str) -> bool:
     lowered = value.lower()
-    return any(
+    if any(
         fragment in lowered for fragment in ("test", "sandbox", "mock", "local")
-    ) or any(lowered.endswith(tld) for tld in SAFE_TLDS)
+    ) or any(lowered.endswith(tld) for tld in SAFE_TLDS):
+        return True
+    if "://" in value:
+        try:
+            host = urlsplit(value).hostname
+        except ValueError:
+            host = None
+        return host is not None and safe_host(host)
+    return False
 
 
 def name_contains_fragment(name: str, fragment: str) -> bool:
@@ -441,8 +485,9 @@ def scan_text(
                 "AUDIENCE",
                 "BUCKET",
                 "CLUSTER",
-                "CONTEXT",
                 "DATABASE_URL",
+                "KUBERNETES_CONTEXT",
+                "KUBE_CONTEXT",
                 "PROJECT_ID",
                 "ROLE_ARN",
                 "SERVICE_ACCOUNT",
