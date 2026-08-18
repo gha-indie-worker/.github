@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "policy_version": "2026-08-14.1",
+  "test_organization_suffix": "-test",
+  "manifest_path": ".github/test-org-isolation.json",
+  "max_file_bytes": 1048576,
+  "scan_extensions": [
+    ".env",
+    ".json",
+    ".toml",
+    ".yaml",
+    ".yml"
+  ],
+  "scan_exact_names": [
+    "Dockerfile",
+    "Justfile"
+  ],
+  "required_manifest_fields": [
+    "namespace_prefix",
+    "domain_suffix",
+    "service_account_prefix",
+    "storage_prefix",
+    "outbound_send_enabled",
+    "outbound_rate_limit_per_minute",
+    "production_connectivity_enabled"
+  ],
+  "forbidden_secret_name_fragments": [
+    "CROSS_ORG_WRITE",
+    "DEPLOY_KEY",
+    "PAT",
+    "PROD",
+    "PRODUCTION"
+  ],
+  "privileged_runner_fragments": [
+    "deploy",
+    "privileged",
+    "prod",
+    "production"
+  ]
+}

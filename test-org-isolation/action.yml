@@ -1,0 +1,78 @@
+name: Test-organization isolation
+description: Statically reject production resource and credential scope in *-test repositories.
+
+inputs:
+  root:
+    description: Checked-out repository root.
+    required: false
+    default: .
+  repository:
+    description: Exact owner/name identity for the checked-out repository.
+    required: true
+  source-sha:
+    description: Exact 40-character source commit SHA.
+    required: true
+  exceptions:
+    description: Repository-relative exception document; absent files mean no exceptions.
+    required: false
+    default: .github/test-org-isolation-exceptions.json
+
+outputs:
+  report-directory:
+    description: Directory containing JSON, Markdown, and SARIF reports.
+    value: ${{ steps.scan.outputs.report-directory }}
+
+runs:
+  using: composite
+  steps:
+    - id: scan
+      name: Scan without evaluating repository code
+      shell: bash
+      env:
+        INPUT_ROOT: ${{ inputs.root }}
+        INPUT_REPOSITORY: ${{ inputs.repository }}
+        INPUT_SOURCE_SHA: ${{ inputs.source-sha }}
+        INPUT_EXCEPTIONS: ${{ inputs.exceptions }}
+        SCANNER: ${{ github.action_path }}/../scripts/test_org_isolation.py
+        POLICY: ${{ github.action_path }}/../test-org-isolation-policy.json
+      run: |
+        set -euo pipefail
+        root="$(cd "$INPUT_ROOT" && pwd -P)"
+        report_directory="$root/.test-org-isolation"
+        mkdir -p "$report_directory"
+        exception_args=()
+        if [[ -n "$INPUT_EXCEPTIONS" && -f "$root/$INPUT_EXCEPTIONS" ]]; then
+          exception_args=(--exceptions "$root/$INPUT_EXCEPTIONS")
+        fi
+        common=(
+          --root "$root"
+          --repository "$INPUT_REPOSITORY"
+          --source-sha "$INPUT_SOURCE_SHA"
+          --policy "$POLICY"
+          "${exception_args[@]}"
+          --mode audit
+        )
+        python3 "$SCANNER" "${common[@]}" --format json --output "$report_directory/report.json"
+        python3 "$SCANNER" "${common[@]}" --format markdown --output "$report_directory/report.md"
+        python3 "$SCANNER" "${common[@]}" --format sarif --output "$report_directory/report.sarif"
+        REPORT="$report_directory/report.json" python3 - <<'PY'
+        import json
+        import os
+        from pathlib import Path
+
+        report = json.loads(Path(os.environ["REPORT"]).read_text(encoding="utf-8"))
+        summary = report["summary"]
+        print(
+            "test-org isolation: "
+            f"inputs={summary['inputs']} active={summary['active_findings']} "
+            f"suppressed={summary['suppressed_findings']} "
+            f"report={report['report_sha256']}"
+        )
+        if not summary["valid"]:
+            raise SystemExit(1)
+        PY
+        {
+          echo "### Test-organization isolation"
+          cat "$report_directory/report.md"
+        } >> "$GITHUB_STEP_SUMMARY"
+        echo "report-directory=$report_directory" >> "$GITHUB_OUTPUT"
