@@ -13,6 +13,14 @@ on:
       - 'scripts/workflow_policy/*.py'
       - 'scripts/tests/test_*workflow*.py'
       - 'docs/WORKFLOW_POLICY_LINTER.md'
+      - 'test-org-isolation/**'
+      - 'test-org-isolation-policy.json'
+      - 'test-org-isolation-exceptions.json'
+      - 'schemas/test-org-isolation-manifest.schema.json'
+      - 'schemas/test-org-isolation-exceptions.schema.json'
+      - 'scripts/test_org_isolation.py'
+      - 'scripts/tests/test_test_org_isolation.py'
+      - 'docs/TEST_ORG_ISOLATION.md'
   push:
     branches:
       - main
@@ -27,6 +35,14 @@ on:
       - 'scripts/workflow_policy/*.py'
       - 'scripts/tests/test_*workflow*.py'
       - 'docs/WORKFLOW_POLICY_LINTER.md'
+      - 'test-org-isolation/**'
+      - 'test-org-isolation-policy.json'
+      - 'test-org-isolation-exceptions.json'
+      - 'schemas/test-org-isolation-manifest.schema.json'
+      - 'schemas/test-org-isolation-exceptions.schema.json'
+      - 'scripts/test_org_isolation.py'
+      - 'scripts/tests/test_test_org_isolation.py'
+      - 'docs/TEST_ORG_ISOLATION.md'
   workflow_dispatch:
 
 permissions: {}
@@ -59,12 +75,23 @@ jobs:
           set -euo pipefail
           python -m py_compile \
             scripts/fleet_workflow_audit.py \
+            scripts/test_org_isolation.py \
             scripts/workflow_policy_linter.py \
             scripts/workflow_policy/*.py \
-            scripts/tests/test_*workflow*.py
+            scripts/tests/test_*workflow*.py \
+            scripts/tests/test_test_org_isolation.py
 
       - name: Run positive and adversarial policy tests
         run: python -m unittest discover -s scripts/tests -p 'test_*workflow*.py' -v
+
+      - name: Validate integrated test-organization isolation policy
+        run: |
+          set -euo pipefail
+          python -m json.tool test-org-isolation-policy.json >/dev/null
+          python -m json.tool test-org-isolation-exceptions.json >/dev/null
+          python -m json.tool schemas/test-org-isolation-manifest.schema.json >/dev/null
+          python -m json.tool schemas/test-org-isolation-exceptions.schema.json >/dev/null
+          python -m unittest -v scripts.tests.test_test_org_isolation
 
       - name: Enforce policy on the canary workflow set
         env:

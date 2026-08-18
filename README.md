@@ -9,6 +9,8 @@ Organization-wide GitHub, branching, review, agent, and delivery policy for `gha
 - [Organization governance](GOVERNANCE.md)
 - [Branching and deployment](BRANCHING_AND_DEPLOYMENT.md)
 - [Repository boundaries](REPOSITORY_BOUNDARIES.md)
+- [Workflow governance linter](docs/WORKFLOW_POLICY_LINTER.md)
+- [Test-organization production isolation](docs/TEST_ORG_ISOLATION.md)
 
 Canonical planning surfaces:
 
