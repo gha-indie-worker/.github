@@ -3,5 +3,6 @@ temp
 tmp/worktrees
 temp/worktrees
 __pycache__/
-*.pyc
+*.py[cod]
+.ruff_cache/
 .test-org-isolation/
