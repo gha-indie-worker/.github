@@ -1,8 +1,13 @@
-tmp
-temp
+tmp/
+temp/
 tmp/worktrees
 temp/worktrees
 __pycache__/
 *.py[cod]
 .ruff_cache/
 .test-org-isolation/
+node_modules/
+.astro/
+dist/
+playwright-report/
+test-results/
