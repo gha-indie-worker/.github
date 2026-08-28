@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/gha-indie-worker/.github/blob/main/schemas/test-org-isolation-manifest.schema.json",
+  "title": "Test-organization isolation manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "namespace_prefix",
+    "domain_suffix",
+    "service_account_prefix",
+    "storage_prefix",
+    "outbound_send_enabled",
+    "outbound_rate_limit_per_minute",
+    "production_connectivity_enabled"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "namespace_prefix": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{2,62}-test$"
+    },
+    "domain_suffix": {
+      "type": "string",
+      "pattern": "^[a-z0-9.-]+\\.(invalid|test|example)$"
+    },
+    "service_account_prefix": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{2,62}-test$"
+    },
+    "storage_prefix": {
+      "type": "string",
+      "pattern": "^test/[a-z0-9][a-z0-9._/-]{1,126}/$"
+    },
+    "outbound_send_enabled": {
+      "const": false
+    },
+    "outbound_rate_limit_per_minute": {
+      "const": 0
+    },
+    "production_connectivity_enabled": {
+      "const": false
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "policy_version": "2026-08-10.1",
+  "immutable_refs": {
+    "action_sha_length": 40,
+    "docker_digest_length": 64
+  },
+  "concurrency_events": [
+    "push",
+    "pull_request",
+    "pull_request_target",
+    "schedule"
+  ],
+  "scheduled_env": [
+    "SCHEDULE_TIMEZONE",
+    "RUN_EVIDENCE_SCHEMA",
+    "MISSED_RUN_POLICY"
+  ],
+  "deny_pull_request_target": true,
+  "deny_untrusted_self_hosted": true,
+  "require_checkout_persist_credentials_false": true
+}

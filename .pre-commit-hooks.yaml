@@ -1,0 +1,9 @@
+- id: credential-egress-guard
+  name: credential egress guard
+  description: Reject staged secret material without printing matched values.
+  entry: python3 scripts/credential_egress_guard.py --scope staged
+  language: system
+  pass_filenames: false
+  require_serial: true
+  stages:
+    - pre-commit
