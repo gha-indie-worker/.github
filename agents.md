@@ -75,6 +75,8 @@ Never print, log, commit, paste into issues, include in fixtures, or expose toke
 
 ## Pull requests, validation, and evidence
 
+When integrating remote or concurrent work, avoid git rebase in favor of git merge.
+
 Use focused branches and pull requests. Link the relevant Linear issue or project. Explain behavior, risks, migration and roll-forward considerations, security impact, tests run, conflicts and their semantic resolution, and cross-repository dependencies. Never report a branch, commit, pull request, merge, deployment, test run, or external update as complete without authoritative remote evidence.
 <!-- ore-org-baseline:end -->
 
