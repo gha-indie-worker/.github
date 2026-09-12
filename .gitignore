@@ -5,3 +5,7 @@ temp/worktrees
 __pycache__/
 *.pyc
 .test-org-isolation/
+
+# Sanctioned scratch locations - AGENTS.md requires both, trailing-slash form
+tmp/
+temp/
