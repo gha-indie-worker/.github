@@ -12,6 +12,8 @@ Organization-wide GitHub, branching, review, agent, and delivery policy for `gha
 - [Workflow governance linter](docs/WORKFLOW_POLICY_LINTER.md)
 - [Test-organization production isolation](docs/TEST_ORG_ISOLATION.md)
 - [Credential egress guard and incident runbook](docs/CREDENTIAL_EGRESS_GUARD.md)
+- [Workflow governance linter](docs/WORKFLOW_POLICY_LINTER.md)
+- [Test-organization production isolation](docs/TEST_ORG_ISOLATION.md)
 
 Canonical planning surfaces:
 
