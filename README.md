@@ -5,6 +5,7 @@ Organization-wide GitHub, branching, review, agent, and delivery policy for `gha
 ## Planning and governance
 
 - [GitHub Project and Linear routing](docs/PROJECTS.md)
+- [ores-compose local and Codespaces runtime](docs/ORES_COMPOSE_LOCAL_CODESPACES.md)
 - [Protected review capacity](docs/REVIEW_GOVERNANCE.md)
 - [Organization governance](GOVERNANCE.md)
 - [Branching and deployment](BRANCHING_AND_DEPLOYMENT.md)
