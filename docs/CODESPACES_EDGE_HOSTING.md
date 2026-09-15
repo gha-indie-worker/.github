@@ -13,7 +13,7 @@ Current GHA Indie Worker origin:
 - current canonical accessible infra repository: `gha-indie-worker/gha-indie-worker-infra`
 - canonical local port: `8080`
 
-Before automating future Codespaces, reconcile whether the existing Codespace was created before an infra-repository rename. New automation should use the canonical repository identity.
+The connected GitHub installation cannot resolve `gha-indie-worker/gha-infra`; current implementation work therefore targets `gha-indie-worker/gha-indie-worker-infra`. Before recreating the existing Codespace, confirm whether it predates a repository rename. New automation should use the canonical current repository identity.
 
 ## Request path
 
@@ -26,15 +26,36 @@ browser
   -> preview/status server
 ```
 
-The GitHub forwarded port remains private. Cloudflare must not use the `*.app.github.dev` forwarded-port URL as the origin.
+The GitHub forwarded port remains private. Cloudflare must not use the `*.app.github.dev` forwarded-port URL as the origin. The canonical infra devcontainer marks port 8080 with `onAutoForward: ignore`.
+
+## Implemented lifecycle
+
+The shared Rust implementation is pinned from private `ORESoftware/ores-cli` commit `620cbbc3a5595cfa90b242011b5c1a859928c297`.
+
+```text
+oresc codespace edge up
+oresc codespace edge status
+oresc codespace edge down
+```
+
+The infra repository exposes thin wrappers:
+
+```text
+just codespace-edge-check
+just codespace-edge-up
+just codespace-edge-status
+just codespace-edge-down
+```
+
+`codespace-edge-check` is read-only and accepts exit 2 when the edge runtime is installed but stopped. Lifecycle behavior remains owned by `oresc`, not duplicated in shell.
 
 ## Origin contract
 
-Expose `/`, `/healthz`, `/readyz`, and `/version`; keep the process stateless and bind to `127.0.0.1:8080` unless local tooling requires otherwise. `/version` may expose repo/version/commit metadata but never secrets.
+The shared preview/status origin exposes `/`, `/healthz`, `/readyz`, and `/version`, is stateless, and binds to `127.0.0.1:8080` by default. Responses must not contain credentials.
 
 ## Infrastructure integration
 
-Extend the existing fleet infra conventions rather than adding an unrelated Terraform root. `gha-indie-worker/gha-indie-worker-infra` is the reference for:
+Extend the existing fleet infra conventions rather than adding an unrelated Terraform root. `gha-indie-worker/gha-indie-worker-infra` remains the reference for:
 
 - reusable `modules/<provider>/...` child modules;
 - state-owning `environments/<environment>/<state-root>/...` roots;
@@ -43,29 +64,46 @@ Extend the existing fleet infra conventions rather than adding an unrelated Terr
 - `dist/` as generated/local output;
 - `.ores-infra.toml`, `.zpkg.toml`, and related ORES contracts.
 
-## Tunnel and secrets
+## Cross-owner bootstrap and secrets
 
-Use a remotely managed named tunnel per Codespace. Protect administrative/diagnostic routes with Cloudflare Access and add WAF/rate limits where appropriate.
+`ORESoftware/ores-cli` is private and belongs to a different GitHub owner. A Codespace sourced from `gha-indie-worker` cannot assume its source-repository token can clone that private repository.
 
-Target the fleet SOPS + age pattern: keep only bootstrap material in GitHub Codespaces secrets; place `CF_TUNNEL_TOKEN` and environment values in encrypted `env/enc/codespaces.env.enc`; keep `env/dec/**`, plaintext `.env`, and tunnel credentials out of Git.
+Configure these GitHub Codespaces secrets before creating or rebuilding the canonical infra Codespace:
 
-A direct `CF_TUNNEL_TOKEN` Codespaces secret is acceptable for the proof of concept.
+- `ORES_CLI_READ_TOKEN` — a fine-grained GitHub token limited to read-only Contents access on `ORESoftware/ores-cli`, used only to install the pinned `oresc` source revision;
+- `TUNNEL_TOKEN` — the remotely managed Cloudflare Tunnel connector token consumed by `oresc codespace edge up`.
 
-## Lifecycle commands
+The devcontainer records only secret names/descriptions. During installation it passes `ORES_CLI_READ_TOKEN` through the environment, configures the Git CLI credential helper with `gh auth setup-git`, and enables Cargo's Git CLI fetch path. Never embed the token in a Git URL or argv.
 
-Expose commands equivalent to:
+For longer-lived application configuration, retain the fleet SOPS + age model: encrypted values under approved `env/enc/**` paths and no committed decrypted `.env` or tunnel credentials.
+
+`CF_TUNNEL_TOKEN` remains a compatibility runtime input, but `TUNNEL_TOKEN` is canonical.
+
+## Implemented validation
+
+`gha-indie-worker/gha-indie-worker-infra#27` added the devcontainer edge prerequisites. Follow-up #28 hardened the cross-owner private bootstrap and added a Rust static validator for the devcontainer contract.
+
+The validator checks the exact `oresc` revision, pinned devcontainer features, required secret names, Git CLI fetch mode, port 8080 auto-forward suppression, and rejects credential-shaped values embedded in the devcontainer configuration.
+
+Both the local-runtime static contract and infra-isolation workflows executed real runner steps and passed on the #28 head before merge.
+
+## Codespace activation
+
+Devcontainer changes apply to a new or rebuilt Codespace, not retroactively to a currently running container. After configuring the secrets and rebuilding:
 
 ```text
+just codespace-edge-check
 just codespace-edge-up
 just codespace-edge-status
-just codespace-edge-down
 ```
 
-The up command starts the local server plus `cloudflared`, waits for `/readyz`, and fails closed if required bootstrap material is absent.
+Use `just codespace-edge-down` for an owned local shutdown. No live Cloudflare tunnel/DNS state is implied by repository readiness alone.
 
 ## GitHub Project contract
 
 Track the fleet in a Project named `Codespaces Edge Hosting` with fields: Status, Origin org, Origin repo, Codespace name, Public hostname, Tunnel health, Codespace state, Last verified, and Risk. Recommended views are `By org`, `Tunnel health`, `Blocked`, and `Recently verified`.
+
+The current connector does not expose GitHub Project mutation APIs, so this document defines the tracking contract but does not claim that the Project has been created.
 
 ## Exit path
 
