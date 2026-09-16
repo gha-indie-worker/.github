@@ -6,39 +6,42 @@ Issue: #36
 
 This is a development/preview hosting tier that uses a GitHub Codespace as an ephemeral origin behind Cloudflare. It is not a production availability tier.
 
-Current GHA Indie Worker origin:
+Current GHA Indie Worker origin identity:
 
-- reported Codespace: `supreme-orbit-g4qw69qgj5wcr7v`
-- reported repository: `gha-indie-worker/gha-infra`
-- current canonical accessible infra repository: `gha-indie-worker/gha-indie-worker-infra`
-- canonical local ingress port: `8080`
+- reported Codespace: `supreme-orbit-g4qw69qgj5wcr7v`;
+- historical/reported repository: `gha-indie-worker/gha-infra`;
+- canonical accessible infra repository: `gha-indie-worker/gha-indie-worker-infra`;
+- canonical shared edge ingress: `127.0.0.1:8080`.
 
-The connected GitHub installation cannot resolve `gha-indie-worker/gha-infra`; implementation work therefore targets `gha-indie-worker/gha-indie-worker-infra`. Confirm whether the existing Codespace predates a repository rename before recreating it. New automation should use the canonical current repository identity.
+New automation should use the canonical current repository identity. If the existing Codespace still reports the historical repository name, treat that as a possible pre-rename artifact rather than creating a second infra authority.
 
-## Request path
+## Implemented request path
 
 ```text
-browser
-  -> Cloudflare DNS / TLS / optional Access
+browser / API client
+  -> Cloudflare DNS / TLS / Access/WAF as configured
   -> remotely managed named Cloudflare Tunnel
   -> cloudflared inside the Codespace
-  -> http://127.0.0.1:8080
-  -> repository-owned local application origin
+  -> 127.0.0.1:8080
+  -> ORESoftware/codespaces-cluster Rust edge
+       /api/* -> 127.0.0.1:18090
+       /*     -> 127.0.0.1:18091
+  -> gha-indie-worker API / web services
 ```
 
-GitHub port forwarding remains private. Cloudflare must not use a `*.app.github.dev` forwarded-port URL as the origin. The canonical infra devcontainer marks 8080 with `onAutoForward: ignore`.
+GitHub port forwarding remains private. Cloudflare must not use a `*.app.github.dev` forwarded-port URL as the origin. The infra devcontainer marks 8080 with `onAutoForward: ignore`.
 
-## Implemented connector lifecycle
+## Reviewed immutable toolchain
 
-The shared Rust implementation is pinned to reviewed private `ORESoftware/ores-cli` revision `c854130ee147e9793a3af8736e90241630a5c934`.
+The implemented Codespace stack is pinned to reviewed commits:
 
-```text
-oresc codespace edge up
-oresc codespace edge status
-oresc codespace edge down
-```
+- `ORESoftware/ores-cli@d37aa4c1a0b79a292a31e2f16db8622144b0831f`;
+- `ORESoftware/ores-compose@8a01df4227a44b0b25741b7ef4a910ec4a4dc75f`;
+- `ORESoftware/codespaces-cluster@8c494f4b038a766be06ff29df5a067b6d78c9134`.
 
-The infra repository exposes thin wrappers:
+The canonical infra repository records those authorities under `config/*.rev` and cross-checks them against devcontainer installation commands and Rust contract tests. A reviewed pin must move consistently across the authority file, installation surface, test expectation, and documentation rather than being edited in only one place.
+
+The public operator surface is:
 
 ```text
 just codespace-edge-check
@@ -47,58 +50,77 @@ just codespace-edge-status
 just codespace-edge-down
 ```
 
-The current contract is connector-only: the repository/local orchestrator must first own a real application origin that answers `/readyz` on `127.0.0.1:8080`; only then does `oresc codespace edge up` start the detached `cloudflared` connector. `down` stops only proven-owned connector processes and leaves the local origin untouched. Do not add a synthetic status server to satisfy ingress.
+`just codespace-edge-up` materializes the exact reviewed shared-cluster commit only when necessary, checks it out detached, verifies `HEAD` equals the pin, starts the application compose supervisor, starts the Rust edge on 8080, waits for edge readiness, and only then starts `cloudflared` through `oresc`.
 
-## Infrastructure integration
+`status` and `down` deliberately do not fetch, fast-forward, or switch the shared checkout while it may own running processes. `down` stops the connector/shared edge before the application compose supervisor and attempts both layers even if one shutdown reports an error.
 
-`gha-indie-worker/gha-indie-worker-infra` owns the local development graph and remains the reference for:
+## Application origin and readiness
 
-- reusable `modules/<provider>/...` child modules;
-- state-owning `environments/<environment>/<state-root>/...` roots;
-- provider-native Supabase/Neon/Cloudflare trees where appropriate;
-- `_apps/gha-monorepo` as an exact-revision, non-authoritative application submodule;
-- `dist/` as generated/local output;
-- `.ores-compose.yaml`, `.ores-infra.toml`, `.zpkg.toml`, and related ORES contracts.
+The application compose contract no longer uses print-and-exit stubs. Current local application services are long-lived loopback servers:
 
-The current application doctor intentionally fails closed because the pinned API/web revisions are still print-and-exit stubs. Do not bypass this with sleeps, fake readiness, or moving branch references. Once those real server listeners are promoted, `ores-compose` owns the 8080 origin and `oresc` may attach the Cloudflare connector.
+- API: `127.0.0.1:18090`, with `/healthz` and `/readyz`;
+- web: `127.0.0.1:18091`, with `/healthz` and `/readyz`;
+- web reaches API through `GHA_INDIE_WORKER_API_HTTP_BASE=http://127.0.0.1:18090`.
 
-## Cross-owner bootstrap and secrets
+Port 8080 belongs only to the shared Rust edge. The edge route contract sends `/api/*` to the API backend and all other application paths to web. Its own `/healthz`, `/readyz`, and `/routes` endpoints remain control-plane endpoints.
 
-`ORESoftware/ores-cli` is private and cross-owner. Configure these GitHub Codespaces secrets for the canonical infra Codespace:
+The canonical smoke/readiness path for application traffic through the edge is `http://127.0.0.1:8080/api/readyz`; the application `.ores-compose.yaml` itself does not claim port 8080.
 
-- `ORES_CLI_READ_TOKEN` — fine-grained GitHub token limited to read-only Contents access on `ORESoftware/ores-cli`, used only to install the exact `oresc` revision;
-- `TUNNEL_TOKEN` — connector token for the pre-provisioned remotely managed Cloudflare Tunnel.
+## Ownership boundaries
 
-The bootstrap token is passed through the environment, with Git CLI credential handling and Cargo's Git CLI fetch path. Never embed it in a Git URL or argv. `TUNNEL_TOKEN` is canonical; `CF_TUNNEL_TOKEN` is compatibility input only and must not be authored into devcontainer configuration.
+- `gha-indie-worker/gha-indie-worker-infra` owns the local composition, exact application source pin, route table, Codespaces devcontainer, runtime wrappers, and development ingress desired state.
+- `ORESoftware/ores-compose` owns exact source materialization, dependency-wave startup/readiness, child supervision, reverse dependency-safe shutdown, and partial-start cleanup.
+- `ORESoftware/codespaces-cluster` owns the shared Rust edge and the application compose controller boundary.
+- `ORESoftware/ores-cli` owns only the detached Cloudflare connector lifecycle and proves the external loopback origin ready before connector startup.
+- the application monorepo remains source aggregation, not a second infra/configuration authority.
 
-For longer-lived application configuration, retain the fleet SOPS + age model: encrypted values under approved `env/enc/**` paths and no committed decrypted `.env` or tunnel credentials.
+## Cross-owner bootstrap and secret boundary
 
-## Validation
+All three ORE tooling repositories are private and cross-owner from `gha-indie-worker`. Configure:
 
-Merged infra #27 added the initial devcontainer prerequisites. Merged #28 hardened the cross-owner bootstrap and added a Rust static validator. Current infra PR #29 promotes the connector-only `oresc` revision, updates that validator, documents the external-origin ownership boundary, and adds a dedicated Codespaces edge contract workflow.
+- `ORES_CLI_READ_TOKEN` — a fine-grained GitHub token with read-only Contents access limited to `ORESoftware/ores-cli`, `ORESoftware/ores-compose`, and `ORESoftware/codespaces-cluster`, used only for bootstrap/network operations;
+- `TUNNEL_TOKEN` — the connector token for the pre-provisioned remotely managed named Cloudflare Tunnel.
 
-The validator/CI contract checks exact revisions, pinned devcontainer features, secret names, Git CLI fetch mode, 8080 auto-forward suppression, wrapper presence, credential-shaped configuration, stale legacy ingress, and merge-conflict markers.
+The devcontainer performs a read-only shared-cluster access preflight so insufficient token scope fails during rebuild rather than first activation. Runtime wrappers inject the GitHub token as `GH_TOKEN` only around a required private clone/fetch/bootstrap operation; they do not export it into the long-running process tree.
+
+`oresc@d37aa4c1...` removes `ORES_CLI_READ_TOKEN`, `GH_TOKEN`, `GITHUB_TOKEN`, `TUNNEL_TOKEN`, and `CF_TUNNEL_TOKEN` from generic child command environments before its cloudflared version preflight, detached supervisor, and connector spawn. It selectively restores only canonical `TUNNEL_TOKEN` and the ownership marker where required.
+
+`codespaces-cluster@8c494f4b...` independently strips the same control-plane/tunnel credentials before `ores-compose --help` and `ores-compose up`, preventing those credentials from reaching the application process tree. Its fallback private tooling is pinned rather than pulled from moving Git heads.
+
+For longer-lived application secrets, retain the fleet SOPS + age model: encrypted values under approved `env/enc/**` paths and no committed decrypted `.env`, tunnel token, or credential JSON.
+
+## Validation status
+
+The current infra promotion was semantically reconciled against concurrent lifecycle work rather than selecting one side of overlapping changes wholesale. `gha-indie-worker/gha-indie-worker-infra#40` preserved the newer `ores-compose@8a01df...` authority while promoting `oresc@d37aa4c1...` and `codespaces-cluster@8c494f4b...`.
+
+On the exact reconciled #40 head, all three relevant workflows passed on real GitHub-hosted runners:
+
+- Codespace edge contract;
+- local runtime static contract;
+- infra isolation contracts.
+
+The Rust contract suite verifies immutable revision files, devcontainer/tool pin parity, scoped cross-owner bootstrap auth, immutable shared-cluster checkout, forbidden credential/legacy-ingress material, and documentation parity.
+
+A GitHub Actions result with zero/null executed steps is capacity/admission non-evidence, not a successful test and not by itself a source failure. Low-risk reviewed changes may use the repository's documented zero-runner exception, but the current GHA edge toolchain promotion has real runner-backed evidence.
 
 ## Codespace activation
 
-Repository readiness does not imply a live tunnel. After real API/web listeners are promoted, the activation order is:
+Repository readiness does not imply the named tunnel is currently live. The activation order in a suitably authorized/rebuilt Codespace is:
 
-1. initialize the exact application source;
-2. pass `scripts/dev/doctor`;
-3. start the foreground `ores-compose` origin and wait for `http://127.0.0.1:8080/readyz`;
-4. run `just codespace-edge-check`;
-5. run `just codespace-edge-up`;
-6. inspect `just codespace-edge-status`.
+1. ensure the exact application source is initialized and the repository doctor/contract checks pass;
+2. configure the approved `ORES_CLI_READ_TOKEN` and `TUNNEL_TOKEN` secret inputs;
+3. run `just codespace-edge-check`;
+4. run `just codespace-edge-up`;
+5. verify `just codespace-edge-status` and application readiness through `/api/readyz`;
+6. use `just codespace-edge-down` for ordered connector/edge/application shutdown.
 
-Use `just codespace-edge-down` for connector shutdown; stop the foreground origin through its own supervisor boundary.
-
-Devcontainer permission/configuration changes apply to newly created Codespaces as documented by GitHub; an existing Codespace may require explicit repository-authorization repair rather than assuming a rebuild changed its token scope.
+The available GitHub connector does not provide a shell inside the running Codespace and does not provide Cloudflare account mutation, so repository readiness must not be described as proof that the public tunnel is active.
 
 ## GitHub Project contract
 
 Track the fleet in a Project named `Codespaces Edge Hosting` with fields: Status, Origin org, Origin repo, Codespace name, Public hostname, Tunnel health, Codespace state, Last verified, and Risk. Recommended views are `By org`, `Tunnel health`, `Blocked`, and `Recently verified`.
 
-The current connector does not expose GitHub Project mutation APIs, so this document defines the tracking contract without claiming that the Project has been created.
+The current connector does not expose GitHub Project mutation APIs, so this document defines the tracking contract without claiming that the Project exists.
 
 ## Exit path
 
