@@ -7,12 +7,14 @@ Organization-wide GitHub, branching, review, agent, and delivery policy for `gha
 - [Native Windows and macOS runner fleet](NATIVE_RUNNER_FLEET.md)
 - [Native runner implementation status](docs/NATIVE_RUNNER_IMPLEMENTATION_STATUS.md)
 - [GitHub Project and Linear routing](docs/PROJECTS.md)
+- [ores-compose local and Codespaces runtime](docs/ORES_COMPOSE_LOCAL_CODESPACES.md)
 - [Protected review capacity](docs/REVIEW_GOVERNANCE.md)
 - [Organization governance](GOVERNANCE.md)
 - [Branching and deployment](BRANCHING_AND_DEPLOYMENT.md)
 - [Repository boundaries](REPOSITORY_BOUNDARIES.md)
 - [Workflow governance linter](docs/WORKFLOW_POLICY_LINTER.md)
 - [Test-organization production isolation](docs/TEST_ORG_ISOLATION.md)
+- [Credential egress guard and incident runbook](docs/CREDENTIAL_EGRESS_GUARD.md)
 
 Canonical planning surfaces:
 
