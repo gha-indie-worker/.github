@@ -8,9 +8,20 @@
     "validate": "node scripts/validate-site.mjs",
     "build": "astro build",
     "preview": "astro preview",
-    "test:browser": "playwright test --config playwright.config.mjs"
+    "test:browser": "playwright test --config playwright.config.mjs",
+    "lint:ores": "if [ -f ../.ores-lint/lint.sh ]; then sh ../.ores-lint/lint.sh; else echo 'ores-lint not installed'; fi",
+    "prepublishOnly": "npm run lint:ores",
+    "prebuild": "npm run lint:ores"
   },
   "dependencies": {
     "astro": "5.13.2"
+  },
+  "oresLint": {
+    "note": "Declared, not installed. ores-lint resolves these from a global install - see .ores-lint/README.md",
+    "requires": {
+      "eslint": ">=9",
+      "typescript-eslint": ">=8 (optional; without it .ts files are skipped)"
+    },
+    "install": "npm i -g eslint typescript-eslint"
   }
 }
