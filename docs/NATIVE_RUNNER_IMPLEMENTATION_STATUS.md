@@ -67,7 +67,7 @@ GitHub-hosted Windows and macOS jobs must never be represented as independent fl
 
 1. Independently review secure admission in #16 and typed dispatch/profile binding in #14.
 2. Integrate those contracts into `dev` without weakening branch protection.
-3. Retarget or rebase #21 onto the integrated `dev` head and rerun its exact three-OS matrix.
+3. Merge the integrated `dev` head into #21's branch (or retarget only when semantically appropriate), then rerun its exact three-OS matrix.
 4. Independently review and integrate the macOS, Windows, and inventory contracts in #17, #18, and #19.
 5. Connect real native agents only after production identity, transport, persistence, isolation, cleanup, and operations gates exist.
 
