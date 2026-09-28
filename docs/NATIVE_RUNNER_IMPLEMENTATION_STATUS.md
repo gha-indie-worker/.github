@@ -1,10 +1,10 @@
 # Native runner implementation status
 
-Last synchronized: 2026-08-08
+Last synchronized: 2026-09-28
 
 This document is the evidence index for the native Windows and macOS runner program. It complements [NATIVE_RUNNER_FLEET.md](../NATIVE_RUNNER_FLEET.md), which remains the organization-wide architecture and operating contract.
 
-## Draft implementation stack
+## Landed implementation stack
 
 | Layer | Pull request | Exact head | Exact validation |
 |---|---|---|---|
@@ -16,7 +16,7 @@ This document is the evidence index for the native Windows and macOS runner prog
 | Authoritative mixed-OS fleet inventory contract | [`gha-indie-worker.rs#19`](https://github.com/gha-indie-worker/gha-indie-worker.rs/pull/19) | `301b292192989221fce270590fcaa55a5e912f2e` | [run 31240238100](https://github.com/gha-indie-worker/gha-indie-worker.rs/actions/runs/31240238100) |
 | Organization fleet and project-routing documentation | [`.github#18`](https://github.com/gha-indie-worker/.github/pull/18) | this branch | organization governance and baseline-policy checks |
 
-All implementation pull requests remain drafts pending independent review. Their target integration branch is `dev`; workflows validate `dev` and `main` where the corresponding contract is integrated.
+All six implementation pull requests listed above merged on 2026-08-14 after the recorded exact-head validation. The reviewed merge identities are: #14 `adc97f4a549e70041837b0cb91077e896ff7a1e7`, #16 `3ef992ebf7d19b70b8de4157815c16f4151574ce`, #17 `b9b9f16bdbaf1aac2e9d0dc6c4812c6bc328e0c5`, #18 `a378865bb74fd92f3f7e10d86323cf1dba043454`, #19 `e8f6e7227633198766c01f3b3e9f37fcb7e61392`, and #21 `72055c9af579a94c97054800cf736a53fa8eea50`. Those merges establish the reviewed contract and simulator baseline; they do not by themselves prove production native-host readiness.
 
 ## Canonical vocabulary
 
