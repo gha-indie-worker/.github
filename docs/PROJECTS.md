@@ -51,4 +51,4 @@ When adding implementation issues to the GitHub Project, set:
 
 Do not move a native-runner issue to `Done` merely because a hosted reference job passes. Completion requires the acceptance criteria in Linear and the organization fleet contract, including physical or independent host evidence where the issue requires it.
 
-All implementation pull requests remain drafts until independently reviewed. Do not self-approve, weaken branch protection, or use routine administrator bypass to advance this stack.
+The implementation pull requests listed above merged on 2026-08-14 after their recorded validation. Future native-runner changes still require independent review; do not self-approve, weaken branch protection, or use routine administrator bypass to advance this stack.
