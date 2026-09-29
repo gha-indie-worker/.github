@@ -34,12 +34,14 @@ SECRET_PATTERNS = [
     re.compile(r'gh[pousr]_[A-Za-z0-9]{20,}'),
     re.compile(r'github_pat_[A-Za-z0-9_]{20,}'),
     re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'),
-    re.compile(r'(?i)authorization:\\s*bearer\\s+[A-Za-z0-9._-]{16,}'),
+    re.compile(r'(?i)authorization:\s*bearer\s+[A-Za-z0-9._-]{16,}'),
 ]
+
 
 def fail(message: str) -> None:
     print(f'ERROR: {message}', file=sys.stderr)
     raise SystemExit(1)
+
 
 missing = [path for path in REQUIRED if not (ROOT / path).is_file()]
 if missing:
@@ -65,14 +67,20 @@ for path in ROOT.rglob('*'):
     if text and not text.endswith('\n'):
         fail(f'missing final newline: {path.relative_to(ROOT)}')
 
+
 def executable_jobs_missing_timeout(text: str) -> list[str]:
     missing: list[str] = []
     in_jobs = False
+    saw_jobs = False
     current_name: str | None = None
     current_has_runs_on = False
     current_has_steps = False
     current_has_reusable_uses = False
     current_has_timeout = False
+
+    jobs_header = re.compile(r'jobs\s*:\s*(?:#.*)?$')
+    job_header = re.compile(r'([A-Za-z_][A-Za-z0-9_-]*)\s*:\s*(?:#.*)?$')
+    key = re.compile(r'(runs-on|steps|uses|timeout-minutes)\s*:')
 
     def finish() -> None:
         nonlocal current_name, current_has_runs_on, current_has_steps
@@ -92,9 +100,10 @@ def executable_jobs_missing_timeout(text: str) -> list[str]:
             continue
         indent = len(line) - len(stripped)
         if indent == 0:
-            if stripped == 'jobs:':
+            if jobs_header.fullmatch(stripped):
                 finish()
                 in_jobs = True
+                saw_jobs = True
                 continue
             if in_jobs:
                 finish()
@@ -102,23 +111,55 @@ def executable_jobs_missing_timeout(text: str) -> list[str]:
             continue
         if not in_jobs:
             continue
-        if indent == 2 and re.fullmatch(r'[A-Za-z0-9_-]+:', stripped):
-            finish()
-            current_name = stripped[:-1]
+        if indent == 2:
+            match = job_header.fullmatch(stripped)
+            if match:
+                finish()
+                current_name = match.group(1)
             continue
         if current_name is None or indent != 4:
             continue
-        if stripped.startswith('runs-on:'):
+        match = key.match(stripped)
+        if match is None:
+            continue
+        field = match.group(1)
+        if field == 'runs-on':
             current_has_runs_on = True
-        elif stripped == 'steps:':
+        elif field == 'steps':
             current_has_steps = True
-        elif stripped.startswith('uses:'):
+        elif field == 'uses':
             current_has_reusable_uses = True
-        elif stripped.startswith('timeout-minutes:'):
+        elif field == 'timeout-minutes':
             current_has_timeout = True
 
     finish()
+    if not saw_jobs:
+        return ['<missing-jobs-mapping>']
     return missing
+
+
+_timeout_parser_regressions = [
+    (
+        'name: x\njobs: # valid comment\n  build: # valid comment\n    runs-on : ubuntu-24.04\n    steps :\n      - run: true\n',
+        ['build'],
+    ),
+    (
+        'name: x\njobs :\n  build :\n    runs-on: ubuntu-24.04\n    timeout-minutes : 10\n    steps:\n      - run: true\n',
+        [],
+    ),
+    (
+        'name: x\njobs:\n  delegated:\n    uses : owner/repo/.github/workflows/reusable.yml@0123456789012345678901234567890123456789\n',
+        [],
+    ),
+    (
+        'name: x\non: push\n',
+        ['<missing-jobs-mapping>'],
+    ),
+]
+for fixture, expected in _timeout_parser_regressions:
+    actual = executable_jobs_missing_timeout(fixture)
+    if actual != expected:
+        fail(f'internal timeout parser regression: expected {expected!r}, got {actual!r}')
 
 workflow_paths = list((ROOT / '.github/workflows').glob('*.y*ml'))
 workflow_paths += list((ROOT / 'workflow-templates').glob('*.y*ml'))
@@ -130,7 +171,7 @@ for path in workflow_paths:
     if missing_timeouts:
         fail(f'workflow executable jobs lack timeout: {path.relative_to(ROOT)}: {", ".join(missing_timeouts)}')
     for number, line in enumerate(text.splitlines(), 1):
-        match = re.search(r'^\\s*(?:-\\s+)?uses:\\s*([^\\s#]+)', line)
+        match = re.search(r'^\s*(?:-\s+)?uses:\s*([^\s#]+)', line)
         if not match:
             continue
         ref = match.group(1)
