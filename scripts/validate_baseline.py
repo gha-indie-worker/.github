@@ -65,14 +65,70 @@ for path in ROOT.rglob('*'):
     if text and not text.endswith('\n'):
         fail(f'missing final newline: {path.relative_to(ROOT)}')
 
+def executable_jobs_missing_timeout(text: str) -> list[str]:
+    missing: list[str] = []
+    in_jobs = False
+    current_name: str | None = None
+    current_has_runs_on = False
+    current_has_steps = False
+    current_has_reusable_uses = False
+    current_has_timeout = False
+
+    def finish() -> None:
+        nonlocal current_name, current_has_runs_on, current_has_steps
+        nonlocal current_has_reusable_uses, current_has_timeout
+        if current_name is not None:
+            if (current_has_runs_on or current_has_steps) and not current_has_reusable_uses and not current_has_timeout:
+                missing.append(current_name)
+        current_name = None
+        current_has_runs_on = False
+        current_has_steps = False
+        current_has_reusable_uses = False
+        current_has_timeout = False
+
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        if not stripped or stripped.startswith('#'):
+            continue
+        indent = len(line) - len(stripped)
+        if indent == 0:
+            if stripped == 'jobs:':
+                finish()
+                in_jobs = True
+                continue
+            if in_jobs:
+                finish()
+                in_jobs = False
+            continue
+        if not in_jobs:
+            continue
+        if indent == 2 and re.fullmatch(r'[A-Za-z0-9_-]+:', stripped):
+            finish()
+            current_name = stripped[:-1]
+            continue
+        if current_name is None or indent != 4:
+            continue
+        if stripped.startswith('runs-on:'):
+            current_has_runs_on = True
+        elif stripped == 'steps:':
+            current_has_steps = True
+        elif stripped.startswith('uses:'):
+            current_has_reusable_uses = True
+        elif stripped.startswith('timeout-minutes:'):
+            current_has_timeout = True
+
+    finish()
+    return missing
+
 workflow_paths = list((ROOT / '.github/workflows').glob('*.y*ml'))
 workflow_paths += list((ROOT / 'workflow-templates').glob('*.y*ml'))
 for path in workflow_paths:
     text = path.read_text(encoding='utf-8')
     if 'permissions:' not in text:
         fail(f'workflow lacks explicit permissions: {path.relative_to(ROOT)}')
-    if 'timeout-minutes:' not in text:
-        fail(f'workflow lacks timeout: {path.relative_to(ROOT)}')
+    missing_timeouts = executable_jobs_missing_timeout(text)
+    if missing_timeouts:
+        fail(f'workflow executable jobs lack timeout: {path.relative_to(ROOT)}: {", ".join(missing_timeouts)}')
     for number, line in enumerate(text.splitlines(), 1):
         match = re.search(r'^\\s*(?:-\\s+)?uses:\\s*([^\\s#]+)', line)
         if not match:
