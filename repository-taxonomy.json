@@ -27,7 +27,8 @@
       },
       "database_scope": "none",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-clone-server.rs",
@@ -47,7 +48,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker-api-server.rs",
@@ -67,7 +69,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker-assets",
@@ -87,7 +90,8 @@
       },
       "database_scope": "none",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker-cli",
@@ -107,7 +111,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker-clients",
@@ -127,7 +132,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker-desktop-app.rs",
@@ -147,7 +153,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker-e2e",
@@ -167,7 +174,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker-flutter",
@@ -187,7 +195,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker-infra",
@@ -207,7 +216,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker-interfaces",
@@ -227,7 +237,8 @@
       },
       "database_scope": "none",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker-lib-core",
@@ -247,7 +258,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker-mcp-server.rs",
@@ -267,7 +279,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker-monorepo",
@@ -287,7 +300,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker-pub-lib-core",
@@ -307,7 +321,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker-sidecar.rs",
@@ -327,7 +342,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker-sync",
@@ -347,7 +363,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker-web-server.rs",
@@ -367,7 +384,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker.github.io",
@@ -387,7 +405,8 @@
       },
       "database_scope": "none",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/gha-indie-worker.rs",
@@ -407,7 +426,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/giw-desktop-cli",
@@ -427,7 +447,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/giw-desktop-daemon",
@@ -447,7 +468,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     },
     {
       "repository": "gha-indie-worker/giw-desktop-infra",
@@ -467,7 +489,8 @@
       },
       "database_scope": "unverified",
       "lifecycle": "unverified",
-      "review_status": "inferred-needs-review"
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
     }
   ]
 }
