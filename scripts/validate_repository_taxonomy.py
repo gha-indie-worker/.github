@@ -11,6 +11,8 @@ MAX_JSON_BYTES = 2_000_000
 
 def read_json(path):
     path = Path(path)
+    if path.is_symlink() or not path.is_file():
+        fail(f"{path}: expected regular file, not symlink or special file")
     if path.stat().st_size > MAX_JSON_BYTES:
         fail(f"{path}: oversized registry/schema")
     def unique_pairs(pairs):
@@ -70,7 +72,7 @@ def schema_check(value, shape, schema, path="$"):
             schema_check(item, shape["items"], schema, f"{path}[{i}]")
 
 
-def check(registry, schema, owner, public_repo):
+def check(registry, schema, owner, public_repo, *, _fixture_review_authorization=False):
     schema_check(registry, schema, schema)
     if registry["organization"] != owner:
         fail("organization does not match workflow repository owner")
@@ -132,6 +134,12 @@ def check(registry, schema, owner, public_repo):
             if targets["status"] != "unverified" or release["status"] != "unverified":
                 fail(f"{name}: provisional record cannot approve a deployment or release")
         elif state == "reviewed":
+            # Syntax-only JSON evidence is forgeable. Production has no authoritative
+            # approved-attestation source yet, so it must reject all promotions.
+            # The fixture-only override is used solely to exercise downstream VPC
+            # isolation checks in the trusted verifier's own self-tests.
+            if not _fixture_review_authorization:
+                fail(f"{name}: reviewed claims require independently verified approval; admission unavailable")
             if not isinstance(evidence, dict) or not all(evidence.get(k) for k in ("url", "reviewed_by", "reviewed_at")):
                 fail(f"{name}: reviewed classification requires provenance")
             if not re.fullmatch(r"https://github\.com/[^/]+/[^/]+/(?:pull/\d+|commit/[0-9a-f]{40})", evidence["url"]):
@@ -208,7 +216,7 @@ def self_test():
         mutate(instance)
         caught = False
         try:
-            check(instance, schema, owner, True)
+            check(instance, schema, owner, True, _fixture_review_authorization=True)
         except (PolicyError, KeyError, TypeError, ValueError):
             caught = True
         if caught != rejected:
@@ -317,6 +325,40 @@ def self_test():
     expect("blank-reviewed-release-identifier", lambda x: (
         attach(x, [approved("test-org/a-admin-api-server.rs", "admin-api", "vpc-a")]),
         x["repositories"][-1]["release_unit"].update(identifiers=[" "])))
+
+    forged = copy.deepcopy(doc)
+    attach(forged, [approved("test-org/a-admin-api-server.rs", "admin-api", "vpc-a")])
+    try:
+        check(forged, schema, owner, True)  # production mode, NOT fixture mode
+    except PolicyError as error:
+        if "independently verified approval" not in str(error):
+            raise
+    else:
+        fail("self-test: production accepted self-attested reviewed record")
+    scenarios.append("production-denies-spoofed-review")
+    with tempfile.TemporaryDirectory() as tmp:
+        target = Path(tmp) / "actual.json"
+        target.write_text('{"a": 1}', encoding="utf-8")
+        link = Path(tmp) / "link.json"
+        link.symlink_to(target)
+        try:
+            read_json(link)
+        except PolicyError as error:
+            if "regular file" not in str(error):
+                raise
+        else:
+            fail("self-test: symlinked JSON was accepted")
+        scenarios.append("rejects-symlinked-registry")
+        too_large = Path(tmp) / "oversized.json"
+        too_large.write_bytes(b" " * (MAX_JSON_BYTES + 1))
+        try:
+            read_json(too_large)
+        except PolicyError as error:
+            if "oversized" not in str(error):
+                raise
+        else:
+            fail("self-test: oversized JSON was accepted")
+        scenarios.append("rejects-oversized-registry")
     print(f"self-tests passed: {len(scenarios)}")
 
 
