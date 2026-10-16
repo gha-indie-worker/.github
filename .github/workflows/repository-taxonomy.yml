@@ -1,0 +1,29 @@
+name: repository-taxonomy-policy
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: taxonomy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact head without stored credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Policy regression tests
+        run: python3 scripts/validate_repository_taxonomy.py --self-test
+      - name: Validate repository taxonomy
+        run: python3 scripts/validate_repository_taxonomy.py --org "$GITHUB_REPOSITORY_OWNER" --public-repo
