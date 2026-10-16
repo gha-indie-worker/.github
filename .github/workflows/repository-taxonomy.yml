@@ -37,11 +37,24 @@ jobs:
           test "$(git hash-object "$RUNNER_TEMP/trusted-taxonomy.py")" = "6558ef9b34f0fc3d3fa662ab39360bf7339cd424"
           test "$(git hash-object "$RUNNER_TEMP/repository-taxonomy.schema.json")" = "d2ec393f368d17793c6812b4867d3fedb50ef578"
 
+      - name: Prove isolated Python imports resist workspace module shadowing
+        shell: bash
+        run: |
+          set -euo pipefail
+          fixture="$(mktemp -d)"
+          trap 'rm -rf "$fixture"' EXIT
+          printf 'raise RuntimeError("untrusted json.py was imported")\\n' > "$fixture/json.py"
+          printf 'raise RuntimeError("untrusted copy.py was imported")\\n' > "$fixture/copy.py"
+          (
+            cd "$fixture"
+            python3 -I -c 'import json, copy, pathlib, sys; assert not any(p in ("", ".") for p in sys.path); assert not json.__file__.startswith(sys.argv[1]); assert not copy.__file__.startswith(sys.argv[1])' "$fixture"
+          )
+
       - name: Reject local schema changes that weaken trusted authority
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
+          python3 -I - <<'PY'
           import copy
           import os
           import runpy
@@ -63,7 +76,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP"
-          python3 trusted-taxonomy.py --self-test
+          python3 -I trusted-taxonomy.py --self-test
 
       - name: Check registry using immutable verifier and schema
         shell: bash
@@ -73,7 +86,7 @@ jobs:
           if [ "${{ github.event.repository.private }}" = "false" ]; then
             args+=(--public-repo)
           fi
-          python3 "$RUNNER_TEMP/trusted-taxonomy.py" \
+          python3 -I "$RUNNER_TEMP/trusted-taxonomy.py" \
             --registry repository-taxonomy.json \
             --schema "$RUNNER_TEMP/organization-taxonomy.schema.json" \
             --org "$GITHUB_REPOSITORY_OWNER" "${args[@]}"
