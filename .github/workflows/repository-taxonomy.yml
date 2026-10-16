@@ -14,7 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  validate:
+  taxonomy-admission:
+    name: taxonomy-admission
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
