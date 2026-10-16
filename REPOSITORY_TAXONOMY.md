@@ -15,3 +15,7 @@ Every listed repository declares `category`, `trust_domain`, `source_authority`,
 ## Registry maintenance
 
 Keep all public repositories listed in public registries; if the `.github` repository itself is private, reconcile the full authorized organization inventory. A repository rename, new service, privileged capability, deploy target, or DB scope change requires a reviewed update. Ensure no duplicate repository keys, check schema validation, and do not convert `unverified` to `reviewed` without supporting evidence.
+
+## CI enforcement
+
+`.github/workflows/repository-taxonomy.yml` runs the standard-library validator and negative regression fixtures on PR and main. It enforces schema, public-only visibility labels, org ownership, admin role/data scope mappings, no speculative deployment identifiers, and requires provenance before marking privileged deployment metadata reviewed. Reviewed admin web, API, and MCP cannot share VPC identifiers. Review provenance is **not** proof of an independent GitHub approval; configure required checks and independent reviews through repository rules. Private repository metadata must stay in an access-restricted inventory, not this public profile.
