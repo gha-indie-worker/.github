@@ -50,12 +50,33 @@ jobs:
             python3 -I -c 'import json, copy, pathlib, sys; assert not any(p in ("", ".") for p in sys.path); assert not json.__file__.startswith(sys.argv[1]); assert not copy.__file__.startswith(sys.argv[1])' "$fixture"
           )
 
+      - name: Prove verifier and schema content tampering is detected
+        shell: bash
+        run: |
+          set -euo pipefail
+          fixture="$(mktemp -d)"
+          trap 'rm -rf "$fixture"' EXIT
+          cp "$RUNNER_TEMP/trusted-taxonomy.py" "$fixture/substituted-verifier.py"
+          cp "$RUNNER_TEMP/repository-taxonomy.schema.json" "$fixture/substituted-schema.json"
+          printf '\\n# unauthorized verifier change\\n' >> "$fixture/substituted-verifier.py"
+          printf ' ' >> "$fixture/substituted-schema.json"
+          if [ "$(git hash-object "$fixture/substituted-verifier.py")" = "6558ef9b34f0fc3d3fa662ab39360bf7339cd424" ]; then
+            echo "FAIL: modified verifier matched immutable digest" >&2
+            exit 1
+          fi
+          if [ "$(git hash-object "$fixture/substituted-schema.json")" = "d2ec393f368d17793c6812b4867d3fedb50ef578" ]; then
+            echo "FAIL: modified schema matched immutable digest" >&2
+            exit 1
+          fi
+          echo "Immutable verifier/schema tamper probes: PASS"
+
       - name: Reject local schema changes that weaken trusted authority
         shell: bash
         run: |
           set -euo pipefail
           python3 -I - <<'PY'
           import copy
+          import json
           import os
           import runpy
           from pathlib import Path
@@ -64,8 +85,29 @@ jobs:
           expected = copy.deepcopy(read(Path(os.environ["RUNNER_TEMP"]) / "repository-taxonomy.schema.json"))
           expected["properties"]["organization"] = {"const": os.environ["GITHUB_REPOSITORY_OWNER"]}
           proposed = read("repository-taxonomy.schema.json")
-          if expected != proposed:
+          # Python considers True == 1 and 1.0 == 1. Canonical serialization
+          # preserves JSON scalar types while ignoring harmless key ordering.
+          canonical = lambda value: json.dumps(
+              value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+              allow_nan=False)
+          if canonical(expected) != canonical(proposed):
               raise SystemExit("ERROR: proposed schema differs from pinned governance policy; request an independently reviewed verifier upgrade")
+          # Negative regression: a JSON boolean must not pass for integer 1.
+          poisoned = copy.deepcopy(expected)
+          poisoned["properties"]["version"]["const"] = True
+          if poisoned != expected or canonical(poisoned) == canonical(expected):
+              raise SystemExit("FAIL: boolean/integer schema substitution not detected")
+          # Negative regression: an integer cannot impersonate a Boolean.
+          poisoned = copy.deepcopy(expected)
+          poisoned["properties"]["governance"]["properties"]["approval_required"]["const"] = 1
+          if poisoned != expected or canonical(poisoned) == canonical(expected):
+              raise SystemExit("FAIL: integer/boolean governance substitution not detected")
+          # Negative regression: schema weakening must not match.
+          poisoned = copy.deepcopy(expected)
+          poisoned["properties"]["repositories"]["items"] = {"type": "object"}
+          if canonical(poisoned) == canonical(expected):
+              raise SystemExit("FAIL: permissive schema substitution not detected")
+          print("Schema type-confusion and weakening probes: PASS")
           (Path(os.environ["RUNNER_TEMP"]) / "organization-taxonomy.schema.json").write_text(
               __import__("json").dumps(expected), encoding="utf-8")
           print("Pinned schema equality: PASS")
