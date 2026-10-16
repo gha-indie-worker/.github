@@ -7,6 +7,25 @@ import json
 import re
 from pathlib import Path
 
+MAX_JSON_BYTES = 2_000_000
+
+def read_json(path):
+    path = Path(path)
+    if path.stat().st_size > MAX_JSON_BYTES:
+        fail(f"{path}: oversized registry/schema")
+    def unique_pairs(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                fail(f"{path}: duplicate JSON property {key!r}")
+            result[key] = value
+        return result
+    def reject_nonfinite(value):
+        fail(f"{path}: non-finite numeric literal {value}")
+    return json.loads(path.read_text(encoding="utf-8"),
+                      object_pairs_hook=unique_pairs,
+                      parse_constant=reject_nonfinite)
+
 
 class PolicyError(ValueError):
     pass
@@ -67,9 +86,9 @@ def check(registry, schema, owner, public_repo):
     admin_vpcs = {}
     for row in rows:
         name = row["repository"]
-        if name in names:
-            fail(f"{name}: duplicate repository")
-        names.add(name)
+        if name.casefold() in names:
+            fail(f"{name}: duplicate repository (case-insensitive)")
+        names.add(name.casefold())
         if not name.startswith(owner + "/"):
             fail(f"{name}: foreign organization")
         if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", name):
@@ -99,8 +118,12 @@ def check(registry, schema, owner, public_repo):
         if role in {"admin-web", "admin-api", "admin-mcp"}:
             if scope != "admin" or cat != "app":
                 fail(f"{name}: invalid administrative role or database scope")
-        if role == "public-app" and scope == "admin":
-            fail(f"{name}: public application cannot access admin database")
+        if scope == "admin" and role not in {"admin-web", "admin-api", "admin-mcp", "data-admin"}:
+            fail(f"{name}: only administrative trust domains may access admin database")
+        if role == "data-admin" and scope != "admin":
+            fail(f"{name}: data-admin requires admin database scope")
+        if role == "data-app" and scope not in {"app", "none", "unverified"}:
+            fail(f"{name}: invalid data-app database scope")
         if row["source_authority"] == "pinned-integration-superproject" and cat != "integration":
             fail(f"{name}: integration source authority on non-integration repository")
         if state == "inferred-needs-review":
@@ -112,9 +135,15 @@ def check(registry, schema, owner, public_repo):
             if not isinstance(evidence, dict) or not all(evidence.get(k) for k in ("url", "reviewed_by", "reviewed_at")):
                 fail(f"{name}: reviewed classification requires provenance")
             if not re.fullmatch(r"https://github\.com/[^/]+/[^/]+/(?:pull/\d+|commit/[0-9a-f]{40})", evidence["url"]):
-                fail(f"{name}: review evidence must reference GitHub PR or commit")
+                fail(f"{name}: malformed GitHub review evidence")
+            if not evidence["url"].startswith(f"https://github.com/{owner}/.github/pull/"):
+                fail(f"{name}: reviewed classification requires organization governance PR provenance")
             try:
-                datetime.datetime.fromisoformat(evidence["reviewed_at"].replace("Z", "+00:00"))
+                reviewed_time = datetime.datetime.fromisoformat(evidence["reviewed_at"].replace("Z", "+00:00"))
+                if reviewed_time.tzinfo is None or reviewed_time.utcoffset() is None:
+                    fail(f"{name}: review timestamp needs timezone")
+                if reviewed_time > datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=5):
+                    fail(f"{name}: review timestamp is in future")
             except (ValueError, AttributeError):
                 fail(f"{name}: invalid review timestamp")
         if targets["status"] == "unverified" and any(targets[k] for k in ("environments", "vpcs", "cloud_identities")):
@@ -128,10 +157,13 @@ def check(registry, schema, owner, public_repo):
                 if any(not targets[k] for k in ("environments", "vpcs", "cloud_identities")):
                     fail(f"{name}: reviewed deployable requires environment, VPC and identity")
             if role.startswith("admin-"):
-                admin_vpcs[role] = set(targets["vpcs"])
-        if release["status"] == "reviewed" and state != "reviewed":
-            fail(f"{name}: reviewed release requires reviewed classification")
-    if owner + "/.github" not in names:
+                admin_vpcs.setdefault(role, set()).update(targets["vpcs"])
+        if release["status"] == "reviewed":
+            if state != "reviewed":
+                fail(f"{name}: reviewed release requires reviewed classification")
+            if release["kind"] not in {"none", "integration"} and not release["identifiers"]:
+                fail(f"{name}: reviewed release requires artifact identifiers")
+    if (owner + "/.github").casefold() not in names:
         fail("the organization .github repository is missing")
     roles = sorted(admin_vpcs)
     for i, left in enumerate(roles):
@@ -143,7 +175,7 @@ def check(registry, schema, owner, public_repo):
 
 def self_test():
     owner = "test-org"
-    schema = json.loads(Path("repository-taxonomy.schema.json").read_text())
+    schema = read_json("repository-taxonomy.schema.json")
     schema["properties"]["organization"] = {"const": owner}
     row = {
         "repository": "test-org/.github", "visibility": "public",
@@ -186,6 +218,80 @@ def self_test():
     expect("unknown-category", lambda x: x["repositories"][0].update(category="typo"))
     expect("bad-schema", lambda x: x.update(version=2))
     expect("missing-github", lambda x: x["repositories"][0].update(repository="test-org/other"))
+
+    expect("case-folded-duplicate", lambda x: x["repositories"].append(
+        dict(copy.deepcopy(row), repository="TEST-ORG/.GITHUB")))
+    expect("shared-library-admin-db", lambda x: x["repositories"][0].update(database_scope="admin"))
+    expect("data-admin-needs-admin-db", lambda x: x["repositories"][0].update(
+        trust_domain="data-admin", database_scope="none"))
+    expect("data-app-cannot-use-admin-db", lambda x: x["repositories"][0].update(
+        trust_domain="data-app", database_scope="admin"))
+
+    def approved(repo_name, role, vpc):
+        entry = copy.deepcopy(row)
+        entry.update(repository=repo_name, category="app", trust_domain=role,
+                     database_scope="admin", review_status="reviewed",
+                     review_evidence={"url": "https://github.com/test-org/.github/pull/123",
+                                      "reviewed_by": "test-reviewer",
+                                      "reviewed_at": "2026-01-01T00:00:00Z"})
+        entry["release_unit"].update(kind="service", status="reviewed",
+                                     identifiers=["sha256:" + "a" * 64])
+        entry["deployment_targets"].update(
+            status="reviewed", environments=["production"], vpcs=[vpc],
+            cloud_identities=["synthetic-role"])
+        return entry
+
+    def attach(x, entries):
+        x["repositories"].extend(entries)
+
+    expect("reviewed-admin-distinct-vpcs", lambda x: attach(x, [
+        approved("test-org/a-admin-api-server.rs", "admin-api", "vpc-a"),
+        approved("test-org/a-admin-mcp-server.rs", "admin-mcp", "vpc-b"),
+    ]), False)
+    expect("reviewed-admin-vpc-overlap", lambda x: attach(x, [
+        approved("test-org/a-admin-api-server.rs", "admin-api", "vpc-same"),
+        approved("test-org/a-admin-mcp-server.rs", "admin-mcp", "vpc-same"),
+    ]))
+    expect("multiple-same-role-vpc-overwrite", lambda x: attach(x, [
+        approved("test-org/a-admin-api-server.rs", "admin-api", "vpc-shared"),
+        approved("test-org/b-admin-api-server.rs", "admin-api", "vpc-second"),
+        approved("test-org/a-admin-mcp-server.rs", "admin-mcp", "vpc-shared"),
+    ]))
+    expect("reviewed-release-empty-identifier", lambda x: (
+        attach(x, [approved("test-org/a-admin-api-server.rs", "admin-api", "vpc-a")]),
+        x["repositories"][-1]["release_unit"].update(identifiers=[])))
+    expect("review-with-foreign-org-pr", lambda x: (
+        attach(x, [approved("test-org/a-admin-api-server.rs", "admin-api", "vpc-a")]),
+        x["repositories"][-1]["review_evidence"].update(
+            url="https://github.com/other/.github/pull/1")))
+    expect("review-with-naive-timestamp", lambda x: (
+        attach(x, [approved("test-org/a-admin-api-server.rs", "admin-api", "vpc-a")]),
+        x["repositories"][-1]["review_evidence"].update(
+            reviewed_at="2026-01-01T00:00:00")))
+    expect("review-with-future-timestamp", lambda x: (
+        attach(x, [approved("test-org/a-admin-api-server.rs", "admin-api", "vpc-a")]),
+        x["repositories"][-1]["review_evidence"].update(
+            reviewed_at="2999-01-01T00:00:00Z")))
+    expect("admin-missing-reviewed-vpc", lambda x: (
+        attach(x, [approved("test-org/a-admin-api-server.rs", "admin-api", "vpc-a")]),
+        x["repositories"][-1]["deployment_targets"].update(vpcs=[])))
+
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp) / "registry.json"
+        for content, error_text, label in [
+            ('{"a":1,"a":2}', "duplicate JSON property", "duplicate-json-properties"),
+            ('{"a":NaN}', "non-finite", "non-finite-json"),
+        ]:
+            p.write_text(content, encoding="utf-8")
+            try:
+                read_json(p)
+            except PolicyError as error:
+                if error_text not in str(error):
+                    raise
+            else:
+                fail(f"self-test {label}: unexpectedly accepted")
+            scenarios.append(label)
     print(f"self-tests passed: {len(scenarios)}")
 
 
@@ -203,8 +309,8 @@ def main():
             return
         if not args.org:
             parser.error("--org is required")
-        data = json.loads(Path(args.registry).read_text(encoding="utf-8"))
-        schema = json.loads(Path(args.schema).read_text(encoding="utf-8"))
+        data = read_json(args.registry)
+        schema = read_json(args.schema)
         count = check(data, schema, args.org, args.public_repo)
         print(f"repository taxonomy: PASS ({count} repositories; organization {args.org})")
     except (PolicyError, ValueError, KeyError, TypeError) as exc:
