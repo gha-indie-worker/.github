@@ -105,11 +105,11 @@ def check(registry, schema, owner, public_repo):
         if name == owner + "/.github":
             if cat != "governance" or role != "shared-library" or scope != "none":
                 fail(f"{name}: organization policy repository misclassified")
-        if name.endswith("-admin-mcp-server.rs"):
+        if name.casefold().endswith("-admin-mcp-server.rs"):
             expected = "admin-mcp"
-        elif name.endswith("-admin-api-server.rs"):
+        elif name.casefold().endswith("-admin-api-server.rs"):
             expected = "admin-api"
-        elif name.endswith("-admin-web-server.rs"):
+        elif name.casefold().endswith("-admin-web-server.rs"):
             expected = "admin-web"
         else:
             expected = None
@@ -151,6 +151,12 @@ def check(registry, schema, owner, public_repo):
         if release["status"] == "unverified" and release["identifiers"]:
             fail(f"{name}: unverified release identifiers are forbidden")
         if targets["status"] == "reviewed":
+            for field in ("environments", "vpcs", "cloud_identities"):
+                values = targets[field]
+                if any(not value.strip() or value != value.strip() for value in values):
+                    fail(f"{name}: invalid reviewed {field} value")
+                if len(values) != len(set(values)):
+                    fail(f"{name}: duplicated reviewed {field} value")
             if state != "reviewed":
                 fail(f"{name}: reviewed targets require reviewed classification")
             if release["kind"] in {"service", "application"} or role.startswith("admin-"):
@@ -163,6 +169,10 @@ def check(registry, schema, owner, public_repo):
                 fail(f"{name}: reviewed release requires reviewed classification")
             if release["kind"] not in {"none", "integration"} and not release["identifiers"]:
                 fail(f"{name}: reviewed release requires artifact identifiers")
+            if any(not value.strip() or value != value.strip() for value in release["identifiers"]):
+                fail(f"{name}: reviewed release identifiers cannot be blank or padded")
+            if len(release["identifiers"]) != len(set(release["identifiers"])):
+                fail(f"{name}: duplicated reviewed release identifier")
     if (owner + "/.github").casefold() not in names:
         fail("the organization .github repository is missing")
     roles = sorted(admin_vpcs)
@@ -292,6 +302,21 @@ def self_test():
             else:
                 fail(f"self-test {label}: unexpectedly accepted")
             scenarios.append(label)
+
+    expect("mixed-case-admin-mcp-name", lambda x: x["repositories"].append(
+        dict(copy.deepcopy(row), repository="test-org/A-ADMIN-MCP-SERVER.RS")))
+    expect("blank-reviewed-vpc", lambda x: (
+        attach(x, [approved("test-org/a-admin-api-server.rs", "admin-api", "vpc-a")]),
+        x["repositories"][-1]["deployment_targets"].update(vpcs=["  "])))
+    expect("duplicate-reviewed-vpc", lambda x: (
+        attach(x, [approved("test-org/a-admin-api-server.rs", "admin-api", "vpc-a")]),
+        x["repositories"][-1]["deployment_targets"].update(vpcs=["vpc-a", "vpc-a"])))
+    expect("blank-reviewed-cloud-identity", lambda x: (
+        attach(x, [approved("test-org/a-admin-api-server.rs", "admin-api", "vpc-a")]),
+        x["repositories"][-1]["deployment_targets"].update(cloud_identities=[""])))
+    expect("blank-reviewed-release-identifier", lambda x: (
+        attach(x, [approved("test-org/a-admin-api-server.rs", "admin-api", "vpc-a")]),
+        x["repositories"][-1]["release_unit"].update(identifiers=[" "])))
     print(f"self-tests passed: {len(scenarios)}")
 
 
