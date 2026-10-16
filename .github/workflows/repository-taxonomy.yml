@@ -28,12 +28,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base="https://raw.githubusercontent.com/canonical-cloud/.github/a1de9757aa691179fe2c01bb3ccd2adae553f3ef"
-          curl --fail --silent --show-error --location --retry 3 --connect-timeout 10 --max-time 45 \
+          base="https://raw.githubusercontent.com/canonical-cloud/.github/daf489f8b5939715602ecae3bc3dc1c946347ce5"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --retry 3 --connect-timeout 10 --max-time 45 \
             "$base/scripts/validate_repository_taxonomy.py" --output "$RUNNER_TEMP/trusted-taxonomy.py"
-          curl --fail --silent --show-error --location --retry 3 --connect-timeout 10 --max-time 45 \
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --retry 3 --connect-timeout 10 --max-time 45 \
             "$base/repository-taxonomy.schema.json" --output "$RUNNER_TEMP/repository-taxonomy.schema.json"
-          test "$(git hash-object "$RUNNER_TEMP/trusted-taxonomy.py")" = "b6f32f72d767b31bf5a9233fd6cb840940f67044"
+          test "$(git hash-object "$RUNNER_TEMP/trusted-taxonomy.py")" = "a889c63b5e313b43c477f3b6078ed16df14efd3c"
           test "$(git hash-object "$RUNNER_TEMP/repository-taxonomy.schema.json")" = "d2ec393f368d17793c6812b4867d3fedb50ef578"
 
       - name: Reject local schema changes that weaken trusted authority
@@ -57,7 +57,7 @@ jobs:
           print("Pinned schema equality: PASS")
           PY
 
-      - name: Test immutable verifier (33 cases)
+      - name: Test immutable verifier (36 cases)
         shell: bash
         run: |
           set -euo pipefail
