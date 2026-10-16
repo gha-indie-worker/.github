@@ -2,7 +2,6 @@ name: taxonomy-enforcement-readiness
 
 on:
   pull_request:
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -21,7 +20,6 @@ jobs:
       - name: Test governance readiness evaluation (seven negative/positive cases)
         run: python3 -I scripts/audit_taxonomy_enforcement.py --self-test
       - name: Check effective public GitHub branch and PR metadata
-        if: github.event_name == 'pull_request'
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
