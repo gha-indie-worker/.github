@@ -18,12 +18,61 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: Checkout exact head without stored credentials
+      - name: Checkout proposed policy data only
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
-      - name: Policy regression tests
-        run: python3 scripts/validate_repository_taxonomy.py --self-test
-      - name: Validate repository taxonomy
-        run: python3 scripts/validate_repository_taxonomy.py --org "$GITHUB_REPOSITORY_OWNER" --public-repo
+
+      - name: Fetch and verify immutable public governance code
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://raw.githubusercontent.com/canonical-cloud/.github/a1de9757aa691179fe2c01bb3ccd2adae553f3ef"
+          curl --fail --silent --show-error --location --retry 3 --connect-timeout 10 --max-time 45 \
+            "$base/scripts/validate_repository_taxonomy.py" --output "$RUNNER_TEMP/trusted-taxonomy.py"
+          curl --fail --silent --show-error --location --retry 3 --connect-timeout 10 --max-time 45 \
+            "$base/repository-taxonomy.schema.json" --output "$RUNNER_TEMP/repository-taxonomy.schema.json"
+          test "$(git hash-object "$RUNNER_TEMP/trusted-taxonomy.py")" = "b6f32f72d767b31bf5a9233fd6cb840940f67044"
+          test "$(git hash-object "$RUNNER_TEMP/repository-taxonomy.schema.json")" = "d2ec393f368d17793c6812b4867d3fedb50ef578"
+
+      - name: Reject local schema changes that weaken trusted authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import copy
+          import os
+          import runpy
+          from pathlib import Path
+          trusted = runpy.run_path(os.path.join(os.environ["RUNNER_TEMP"], "trusted-taxonomy.py"))
+          read = trusted["read_json"]
+          expected = copy.deepcopy(read(Path(os.environ["RUNNER_TEMP"]) / "repository-taxonomy.schema.json"))
+          expected["properties"]["organization"] = {"const": os.environ["GITHUB_REPOSITORY_OWNER"]}
+          proposed = read("repository-taxonomy.schema.json")
+          if expected != proposed:
+              raise SystemExit("ERROR: proposed schema differs from pinned governance policy; request an independently reviewed verifier upgrade")
+          (Path(os.environ["RUNNER_TEMP"]) / "organization-taxonomy.schema.json").write_text(
+              __import__("json").dumps(expected), encoding="utf-8")
+          print("Pinned schema equality: PASS")
+          PY
+
+      - name: Test immutable verifier (33 cases)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          python3 trusted-taxonomy.py --self-test
+
+      - name: Check registry using immutable verifier and schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=()
+          if [ "${{ github.event.repository.private }}" = "false" ]; then
+            args+=(--public-repo)
+          fi
+          python3 "$RUNNER_TEMP/trusted-taxonomy.py" \
+            --registry repository-taxonomy.json \
+            --schema "$RUNNER_TEMP/organization-taxonomy.schema.json" \
+            --org "$GITHUB_REPOSITORY_OWNER" "${args[@]}"
