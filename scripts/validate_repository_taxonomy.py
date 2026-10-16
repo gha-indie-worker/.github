@@ -49,7 +49,7 @@ def schema_check(value, shape, schema, path="$"):
     if typ in types and (not isinstance(value, types[typ]) or
                          (typ == "integer" and isinstance(value, bool))):
         fail(f"{path}: expected {typ}")
-    if "const" in shape and value != shape["const"]:
+    if "const" in shape and (type(value) is not type(shape["const"]) or value != shape["const"]):
         fail(f"{path}: wrong constant")
     if "enum" in shape and value not in shape["enum"]:
         fail(f"{path}: value outside enum")
@@ -88,6 +88,8 @@ def check(registry, schema, owner, public_repo, *, _fixture_review_authorization
     admin_vpcs = {}
     for row in rows:
         name = row["repository"]
+        if name.casefold() == (owner + "/.github").casefold() and name != owner + "/.github":
+            fail(f"{name}: governance repository name must use exact canonical spelling")
         if name.casefold() in names:
             fail(f"{name}: duplicate repository (case-insensitive)")
         names.add(name.casefold())
@@ -235,6 +237,14 @@ def self_test():
     expect("bad-authority", lambda x: x["repositories"][0].update(source_authority="pinned-integration-superproject"))
     expect("unknown-category", lambda x: x["repositories"][0].update(category="typo"))
     expect("bad-schema", lambda x: x.update(version=2))
+    expect("boolean-version-is-not-integer-one", lambda x: x.update(version=True))
+    expect("numeric-governance-bool-must-not-pass", lambda x: x["governance"].update(approval_required=1))
+    expect("numeric-privacy-bool-must-not-pass", lambda x: x["governance"].update(public_registry_excludes_private_repositories=1))
+    expect("governance-repository-case-alias", lambda x: x["repositories"][0].update(repository="test-org/.GITHUB"))
+    expect("governance-repository-owner-case-alias", lambda x: x["repositories"][0].update(repository="TEST-ORG/.github"))
+    expect("governance-repository-extra-trailing-dot", lambda x: x["repositories"][0].update(repository="test-org/.github."))
+    expect("version-as-string", lambda x: x.update(version="1"))
+    expect("governance-false", lambda x: x["governance"].update(approval_required=False))
     expect("missing-github", lambda x: x["repositories"][0].update(repository="test-org/other"))
 
     expect("case-folded-duplicate", lambda x: x["repositories"].append(
