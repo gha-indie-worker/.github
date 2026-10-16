@@ -1,0 +1,496 @@
+{
+  "version": 1,
+  "organization": "gha-indie-worker",
+  "inventory_visibility": "public-only",
+  "governance": {
+    "approval_required": true,
+    "unverified_fields_grant_no_access": true,
+    "separate_admin_deployments": true,
+    "public_registry_excludes_private_repositories": true
+  },
+  "repositories": [
+    {
+      "repository": "gha-indie-worker/.github",
+      "category": "governance",
+      "trust_domain": "shared-library",
+      "source_authority": "canonical",
+      "release_unit": {
+        "kind": "none",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "none",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-clone-server.rs",
+      "category": "source",
+      "trust_domain": "unverified",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "unverified",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker-api-server.rs",
+      "category": "app",
+      "trust_domain": "public-app",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "service",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker-assets",
+      "category": "assets",
+      "trust_domain": "unverified",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "none",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "none",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker-cli",
+      "category": "tooling",
+      "trust_domain": "unverified",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "cli",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker-clients",
+      "category": "sdk",
+      "trust_domain": "shared-library",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "sdk",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker-desktop-app.rs",
+      "category": "app",
+      "trust_domain": "unverified",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "application",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker-e2e",
+      "category": "test",
+      "trust_domain": "unverified",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "none",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker-flutter",
+      "category": "app",
+      "trust_domain": "unverified",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "application",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker-infra",
+      "category": "infrastructure",
+      "trust_domain": "unverified",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "unverified",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker-interfaces",
+      "category": "contracts",
+      "trust_domain": "shared-library",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "library",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "none",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker-lib-core",
+      "category": "source",
+      "trust_domain": "shared-library",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "library",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker-mcp-server.rs",
+      "category": "app",
+      "trust_domain": "unverified",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "service",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker-monorepo",
+      "category": "integration",
+      "trust_domain": "unverified",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "integration",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker-pub-lib-core",
+      "category": "source",
+      "trust_domain": "shared-library",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "library",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker-sidecar.rs",
+      "category": "source",
+      "trust_domain": "unverified",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "unverified",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker-sync",
+      "category": "source",
+      "trust_domain": "unverified",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "library",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker-web-server.rs",
+      "category": "app",
+      "trust_domain": "public-app",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "service",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker.github.io",
+      "category": "documentation",
+      "trust_domain": "unverified",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "site",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "none",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/gha-indie-worker.rs",
+      "category": "worker",
+      "trust_domain": "unverified",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "service",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/giw-desktop-cli",
+      "category": "tooling",
+      "trust_domain": "unverified",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "cli",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/giw-desktop-daemon",
+      "category": "source",
+      "trust_domain": "unverified",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "unverified",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    },
+    {
+      "repository": "gha-indie-worker/giw-desktop-infra",
+      "category": "infrastructure",
+      "trust_domain": "unverified",
+      "source_authority": "unverified",
+      "release_unit": {
+        "kind": "unverified",
+        "identifiers": [],
+        "status": "unverified"
+      },
+      "deployment_targets": {
+        "environments": [],
+        "vpcs": [],
+        "cloud_identities": [],
+        "status": "unverified"
+      },
+      "database_scope": "unverified",
+      "lifecycle": "unverified",
+      "review_status": "inferred-needs-review",
+      "visibility": "public"
+    }
+  ]
+}
