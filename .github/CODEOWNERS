@@ -1,0 +1,10 @@
+# Taxonomy governance owners.
+# @ORESoftware has repository administrator permission at publication time.
+# CODEOWNERS requests review; enforce mandatory approval with GitHub rules.
+/repository-taxonomy.json @ORESoftware
+/repository-taxonomy.schema.json @ORESoftware
+/REPOSITORY_TAXONOMY.md @ORESoftware
+/scripts/validate_repository_taxonomy.py @ORESoftware
+/.github/workflows/repository-taxonomy.yml @ORESoftware
+/docs/TAXONOMY_ADMISSION_ENFORCEMENT.md @ORESoftware
+/.github/CODEOWNERS @ORESoftware

@@ -1,0 +1,248 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Organization repository taxonomy and trust-domain registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "organization",
+    "inventory_visibility",
+    "governance",
+    "repositories"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "organization": {
+      "const": "gha-indie-worker"
+    },
+    "inventory_visibility": {
+      "enum": [
+        "public-only",
+        "organization-private"
+      ]
+    },
+    "governance": {
+      "type": "object",
+      "required": [
+        "approval_required",
+        "unverified_fields_grant_no_access",
+        "separate_admin_deployments",
+        "public_registry_excludes_private_repositories"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "approval_required": {
+          "const": true
+        },
+        "unverified_fields_grant_no_access": {
+          "const": true
+        },
+        "separate_admin_deployments": {
+          "const": true
+        },
+        "public_registry_excludes_private_repositories": {
+          "const": true
+        }
+      }
+    },
+    "repositories": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/repository"
+      }
+    }
+  },
+  "$defs": {
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository",
+        "category",
+        "trust_domain",
+        "source_authority",
+        "release_unit",
+        "deployment_targets",
+        "database_scope",
+        "lifecycle",
+        "review_status",
+        "visibility"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^[^/]+/[^/]+$"
+        },
+        "category": {
+          "enum": [
+            "governance",
+            "source",
+            "contracts",
+            "sdk",
+            "app",
+            "integration",
+            "infrastructure",
+            "documentation",
+            "test",
+            "tooling",
+            "worker",
+            "assets",
+            "unknown"
+          ]
+        },
+        "trust_domain": {
+          "enum": [
+            "public-app",
+            "admin-web",
+            "admin-api",
+            "admin-mcp",
+            "data-app",
+            "data-admin",
+            "shared-library",
+            "unverified"
+          ]
+        },
+        "source_authority": {
+          "enum": [
+            "canonical",
+            "generated",
+            "compatibility-mirror",
+            "pinned-integration-superproject",
+            "unverified"
+          ]
+        },
+        "release_unit": {
+          "$ref": "#/$defs/release"
+        },
+        "deployment_targets": {
+          "$ref": "#/$defs/deployment"
+        },
+        "database_scope": {
+          "enum": [
+            "app",
+            "admin",
+            "none",
+            "constrained-integration",
+            "unverified"
+          ]
+        },
+        "lifecycle": {
+          "enum": [
+            "active",
+            "superseded",
+            "archived",
+            "unverified"
+          ]
+        },
+        "review_status": {
+          "enum": [
+            "inferred-needs-review",
+            "reviewed"
+          ]
+        },
+        "visibility": {
+          "enum": [
+            "public",
+            "private"
+          ]
+        },
+        "review_evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "url",
+            "reviewed_by",
+            "reviewed_at"
+          ],
+          "properties": {
+            "url": {
+              "type": "string",
+              "pattern": "^https://github\\.com/[^/]+/[^/]+/(pull/[0-9]+|commit/[0-9a-f]{40})$"
+            },
+            "reviewed_by": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9-]+$"
+            },
+            "reviewed_at": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "identifiers",
+        "status"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "service",
+            "library",
+            "sdk",
+            "cli",
+            "application",
+            "site",
+            "integration",
+            "none",
+            "unverified"
+          ]
+        },
+        "identifiers": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "enum": [
+            "unverified",
+            "reviewed"
+          ]
+        }
+      }
+    },
+    "deployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "environments",
+        "vpcs",
+        "cloud_identities",
+        "status"
+      ],
+      "properties": {
+        "environments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "vpcs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cloud_identities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "enum": [
+            "unverified",
+            "reviewed"
+          ]
+        }
+      }
+    }
+  }
+}
