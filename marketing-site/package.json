@@ -11,6 +11,6 @@
     "test:browser": "playwright test --config playwright.config.mjs"
   },
   "dependencies": {
-    "astro": "5.13.2"
+    "astro": "7.2.8"
   }
 }
