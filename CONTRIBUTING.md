@@ -31,3 +31,15 @@ Use a focused feature branch and a draft pull request. Link the relevant issue o
 
 External GitHub Actions must be pinned to full commit SHAs. Workflows must use explicit least-privilege permissions, explicit timeouts, and non-persisted checkout credentials.
 <!-- ore-org-baseline:end -->
+
+## Rust-first scripts and automation
+
+**Do not add or extend Python scripts; use Rust for first-party tooling.** This applies to build and CI helpers, code generation, data and schema migration tools, release/deploy helpers, project administration, local developer scripts, and one-off maintenance utilities. Prefer a versioned Rust CLI or `cargo xtask` command; thin shell/YAML wrappers may launch Rust programs where required.
+
+**Existing Python automation is migration debt, not a reason to add new Python automation.** Inventory the current script, callers and environment requirements; port with behavioral parity before removing it. Preserve CLI arguments and exit statuses, output formats, error handling, security checks, and supported platforms. Validate positive and negative cases, then switch all CI, docs, hooks and other callers. Record follow-up issues rather than claiming this documentation change performs the migration.
+
+**Python application code is a narrow, documented exception.** A real application/service or an application-specific test suite may use Python when the owning team documents its purpose, scope, alternatives, and reason Rust is unsuitable. Such approval does *not* cover general repository scripts, CI glue, code generators or maintenance automation disguised as app code. Existing Python app code is not automatically slated for deletion by this rule.
+
+New Rust tooling should provide repeatable `cargo` invocations, clear CLI help and failures, appropriate tests, and pinned dependencies where the repository requires them. Prefer `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, plus relevant end-to-end smoke checks on the actual changed head. No check can be reported as passing unless it actually ran.
+
+This is an organization-wide **contributor policy** via the canonical public `.github` repository. GitHub does not automatically distribute standalone `AGENTS.md`, workflow, or custom policy files to every repository; sibling repositories must explicitly synchronize or reference this guidance and enable their own enforcement where required.
