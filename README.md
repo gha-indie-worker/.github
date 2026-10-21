@@ -1,5 +1,7 @@
 # `.github`
 
+**Organization scripting policy:** [Rust-first scripts and automation](CONTRIBUTING.md#rust-first-scripts-and-automation) — no Python automation scripts; documented Python application exceptions only.
+
 Organization-wide GitHub, branching, review, agent, and delivery policy for `gha-indie-worker`.
 
 ## Planning and governance
