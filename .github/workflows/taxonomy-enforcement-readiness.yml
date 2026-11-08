@@ -1,0 +1,32 @@
+name: taxonomy-enforcement-readiness
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  governance-readiness:
+    name: governance-readiness
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout the proposed audit fixture without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Test governance readiness evaluation (seven negative/positive cases)
+        run: python3 -I scripts/audit_taxonomy_enforcement.py --self-test
+      - name: Check effective public GitHub branch and PR metadata
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_BASE: ${{ github.event.pull_request.base.ref }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I scripts/audit_taxonomy_enforcement.py \
+            --repo "$GITHUB_REPOSITORY" \
+            --base "$PR_BASE" --pr "$PR_NUMBER" --author "$PR_AUTHOR"

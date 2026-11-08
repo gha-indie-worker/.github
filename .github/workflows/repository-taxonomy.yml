@@ -1,0 +1,134 @@
+name: repository-taxonomy-policy
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: taxonomy-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  taxonomy-admission:
+    name: taxonomy-admission
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout proposed policy data only
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Fetch and verify immutable public governance code
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://raw.githubusercontent.com/canonical-cloud/.github/ed2a6ff2ad6593e82058ba6ec2bd47d9d699e001"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --retry 3 --connect-timeout 10 --max-time 45 \
+            "$base/scripts/validate_repository_taxonomy.py" --output "$RUNNER_TEMP/trusted-taxonomy.py"
+          curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --retry 3 --connect-timeout 10 --max-time 45 \
+            "$base/repository-taxonomy.schema.json" --output "$RUNNER_TEMP/repository-taxonomy.schema.json"
+          test "$(git hash-object "$RUNNER_TEMP/trusted-taxonomy.py")" = "6558ef9b34f0fc3d3fa662ab39360bf7339cd424"
+          test "$(git hash-object "$RUNNER_TEMP/repository-taxonomy.schema.json")" = "d2ec393f368d17793c6812b4867d3fedb50ef578"
+
+      - name: Prove isolated Python imports resist workspace module shadowing
+        shell: bash
+        run: |
+          set -euo pipefail
+          fixture="$(mktemp -d)"
+          trap 'rm -rf "$fixture"' EXIT
+          printf 'raise RuntimeError("untrusted json.py was imported")\\n' > "$fixture/json.py"
+          printf 'raise RuntimeError("untrusted copy.py was imported")\\n' > "$fixture/copy.py"
+          (
+            cd "$fixture"
+            python3 -I -c 'import json, copy, pathlib, sys; assert not any(p in ("", ".") for p in sys.path); assert not json.__file__.startswith(sys.argv[1]); assert not copy.__file__.startswith(sys.argv[1])' "$fixture"
+          )
+
+      - name: Prove verifier and schema content tampering is detected
+        shell: bash
+        run: |
+          set -euo pipefail
+          fixture="$(mktemp -d)"
+          trap 'rm -rf "$fixture"' EXIT
+          cp "$RUNNER_TEMP/trusted-taxonomy.py" "$fixture/substituted-verifier.py"
+          cp "$RUNNER_TEMP/repository-taxonomy.schema.json" "$fixture/substituted-schema.json"
+          printf '\\n# unauthorized verifier change\\n' >> "$fixture/substituted-verifier.py"
+          printf ' ' >> "$fixture/substituted-schema.json"
+          if [ "$(git hash-object "$fixture/substituted-verifier.py")" = "6558ef9b34f0fc3d3fa662ab39360bf7339cd424" ]; then
+            echo "FAIL: modified verifier matched immutable digest" >&2
+            exit 1
+          fi
+          if [ "$(git hash-object "$fixture/substituted-schema.json")" = "d2ec393f368d17793c6812b4867d3fedb50ef578" ]; then
+            echo "FAIL: modified schema matched immutable digest" >&2
+            exit 1
+          fi
+          echo "Immutable verifier/schema tamper probes: PASS"
+
+      - name: Reject local schema changes that weaken trusted authority
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I - <<'PY'
+          import copy
+          import json
+          import os
+          import runpy
+          from pathlib import Path
+          trusted = runpy.run_path(os.path.join(os.environ["RUNNER_TEMP"], "trusted-taxonomy.py"))
+          read = trusted["read_json"]
+          expected = copy.deepcopy(read(Path(os.environ["RUNNER_TEMP"]) / "repository-taxonomy.schema.json"))
+          expected["properties"]["organization"] = {"const": os.environ["GITHUB_REPOSITORY_OWNER"]}
+          proposed = read("repository-taxonomy.schema.json")
+          # Python considers True == 1 and 1.0 == 1. Canonical serialization
+          # preserves JSON scalar types while ignoring harmless key ordering.
+          canonical = lambda value: json.dumps(
+              value, sort_keys=True, separators=(",", ":"), ensure_ascii=False,
+              allow_nan=False)
+          if canonical(expected) != canonical(proposed):
+              raise SystemExit("ERROR: proposed schema differs from pinned governance policy; request an independently reviewed verifier upgrade")
+          # Negative regression: a JSON boolean must not pass for integer 1.
+          poisoned = copy.deepcopy(expected)
+          poisoned["properties"]["version"]["const"] = True
+          if poisoned != expected or canonical(poisoned) == canonical(expected):
+              raise SystemExit("FAIL: boolean/integer schema substitution not detected")
+          # Negative regression: an integer cannot impersonate a Boolean.
+          poisoned = copy.deepcopy(expected)
+          poisoned["properties"]["governance"]["properties"]["approval_required"]["const"] = 1
+          if poisoned != expected or canonical(poisoned) == canonical(expected):
+              raise SystemExit("FAIL: integer/boolean governance substitution not detected")
+          # Negative regression: schema weakening must not match.
+          poisoned = copy.deepcopy(expected)
+          poisoned["properties"]["repositories"]["items"] = {"type": "object"}
+          if canonical(poisoned) == canonical(expected):
+              raise SystemExit("FAIL: permissive schema substitution not detected")
+          print("Schema type-confusion and weakening probes: PASS")
+          (Path(os.environ["RUNNER_TEMP"]) / "organization-taxonomy.schema.json").write_text(
+              __import__("json").dumps(expected), encoding="utf-8")
+          print("Pinned schema equality: PASS")
+          PY
+
+      - name: Test immutable verifier (44 cases)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP"
+          python3 -I trusted-taxonomy.py --self-test
+
+      - name: Check registry using immutable verifier and schema
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=()
+          if [ "${{ github.event.repository.private }}" = "false" ]; then
+            args+=(--public-repo)
+          fi
+          python3 -I "$RUNNER_TEMP/trusted-taxonomy.py" \
+            --registry repository-taxonomy.json \
+            --schema "$RUNNER_TEMP/organization-taxonomy.schema.json" \
+            --org "$GITHUB_REPOSITORY_OWNER" "${args[@]}"
