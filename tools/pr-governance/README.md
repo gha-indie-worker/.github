@@ -18,6 +18,19 @@ The Rust policy engine in `src/lib.rs` models the merge-first review windows for
 
 Reviews always bind the current exact head SHA and must be submitted within the current ready cycle. The evaluator enforces the transition boundary at the exact second. Author self-approval, stale approvals and unverifiable reviews do not qualify. A required designated reviewer who authored the PR needs an authorized substitute, not a silent exception.
 
+## Automatic Draft-to-Ready promotion at 72 hours
+
+The **Draft clock** is separate from the Ready review clock:
+- If a PR was opened as Draft, its current Draft cycle starts at the original `pull_request.created_at`.
+- If a Ready PR was legitimately converted back to Draft, its new Draft cycle starts at the latest verified `converted_to_draft` transition.
+- At the first authorized check at or after **72 consecutive hours in that Draft cycle**, automatically mark Ready when substantive required/material CI has **actually succeeded on the exact current head SHA** and there is no blocking label.
+- `keep-as-draft` is the canonical persistent block. `not-ready` also blocks promotion. Legacy `keep-draft` remains a blocking alias to prevent unexpected transitions. Holds must not be automatically removed.
+- Investigate overlapping Draft/Ready PRs and reconcile implementations rather than discarding unique work. Explicit holds, unresolved critical safety issues or missing authorized permissions still block.
+- If tests are missing, failed, skipped, pending or stale, keep the PR in Draft and retry once tests pass. A push/test rerun does not restart a Draft cycle.
+- When the automation marks Ready, the Ready review clock starts at **0**, requiring the full initial four-party review until 72 Ready hours elapse. Three Draft days NEVER grant the one-review fast lane.
+
+This evaluator makes an advisory promotion decision but DOES NOT call GitHub to mark Ready or create organization labels. The privileged GitHub integration must re-read exact head, CI, lifecycle events and labels immediately before any transition.
+
 ## Fast-lane competing PR audit
 
 The reviewer/merger must search other relevant open PRs (including drafts and interdependent repositories) by files, symbols, features, APIs, issues and diffs. If changes overlap, **update this PR or the competing PR before merge** to preserve useful functionality and tests. An overlap record identifies candidates and explains their disposition (`incorporated`, `updated`, `superseded`, `independent`, or `unresolved`). **Unresolved overlap blocks fast-lane merges.**
