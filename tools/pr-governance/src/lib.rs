@@ -43,17 +43,55 @@ pub struct CiRun {
     pub state: CiState,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ReviewWindow { StrictInitial, Accelerated, StrictRenewed }
+pub enum ReviewWindow { Draft, StrictInitial, Accelerated, StrictRenewed }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ReadinessState { Draft, Ready }
+#[derive(Clone, Debug)]
+pub struct ReadinessEvent {
+    pub event_id: u64,
+    pub at: u64,
+    pub state: ReadinessState,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OverlapDisposition { Incorporated, Updated, Superseded, Independent, Unresolved }
+#[derive(Clone, Debug)]
+pub struct OverlapCandidate {
+    pub repository: String,
+    pub pr_number: u64,
+    pub disposition: OverlapDisposition,
+    pub rationale: String,
+}
+#[derive(Clone, Debug)]
+pub struct OverlapAudit {
+    pub head_sha: String,
+    pub completed_at: u64,
+    /// The trusted integration increments this for changes to relevant open PRs.
+    pub open_pr_index_version: u64,
+    pub verified_source: bool,
+    pub candidates: Vec<OverlapCandidate>,
+}
 #[derive(Clone, Debug)]
 pub struct Facts {
     pub repository_id: u64,
     pub pr_number: u64,
-    /// Immutable pull_request.created_at, not last push/review/branch update.
+    /// Immutable creation time. Only starts the review clock if initially Ready.
     pub created_at: u64,
+    pub created_as_draft: bool,
+    /// Complete, authenticated GitHub lifecycle timeline (initial state + all transitions).
+    pub lifecycle_complete: bool,
+    pub readiness_events: Vec<ReadinessEvent>,
     pub now: u64,
     pub author_id: u64,
     pub head_sha: String,
     pub draft: bool,
+    /// Labels are normalized lowercase and fetched immediately before the action.
+    pub labels_verified: bool,
+    pub labels: Vec<String>,
+    /// Integration-attested reviewability of draft content; not a CI pass.
+    pub draft_work_complete: bool,
+    /// Authenticated open-PR-index snapshot epoch (never supplied by the PR author).
+    pub open_pr_index_version: u64,
+    pub overlap_audit: Option<OverlapAudit>,
     /// These attestations MUST come from authenticated live GitHub state.
     pub mergeable: bool,
     pub on_hold: bool,
@@ -73,21 +111,87 @@ pub struct Decision {
 fn valid_git_oid(oid: &str) -> bool {
     (oid.len() == 40 || oid.len() == 64) && oid.as_bytes().iter().all(u8::is_ascii_hexdigit)
 }
-pub fn review_window(created_at: u64, now: u64) -> ReviewWindow {
-    let age = now.saturating_sub(created_at);
+
+/// Derive the current review-cycle start. Never guess from creation time for a
+/// formerly drafted PR or accept editable PR body / label timestamps.
+pub fn ready_cycle_start(f: &Facts) -> Result<Option<u64>, &'static str> {
+    if !f.lifecycle_complete { return Err("incomplete readiness lifecycle evidence"); }
+    if f.now < f.created_at { return Err("future PR creation timestamp"); }
+    let mut state = if f.created_as_draft {
+        ReadinessState::Draft
+    } else {
+        ReadinessState::Ready
+    };
+    let mut since = if f.created_as_draft { None } else { Some(f.created_at) };
+    let mut previous: Option<(u64, u64)> = None;
+    let mut event_ids = BTreeSet::new();
+    for event in &f.readiness_events {
+        if event.event_id == 0 || !event_ids.insert(event.event_id)
+            || event.at < f.created_at || event.at > f.now
+            || previous.is_some_and(|prev| (event.at, event.event_id) <= prev)
+            || event.state == state {
+            return Err("invalid or contradictory readiness transition history");
+        }
+        previous = Some((event.at, event.event_id));
+        state = event.state;
+        since = if state == ReadinessState::Ready { Some(event.at) } else { None };
+    }
+    if f.draft != (state == ReadinessState::Draft) {
+        return Err("current draft status disagrees with readiness timeline");
+    }
+    Ok(since)
+}
+fn has_draft_hold(f: &Facts) -> bool {
+    f.labels.iter().any(|label| {
+        label.eq_ignore_ascii_case("keep-draft") || label.eq_ignore_ascii_case("not-ready")
+    })
+}
+fn check_overlap_audit(f: &Facts, since: u64, blockers: &mut Vec<String>) {
+    let Some(audit) = &f.overlap_audit else {
+        blockers.push("missing competing/overlapping PR audit".into());
+        return;
+    };
+    if !audit.verified_source || audit.head_sha != f.head_sha
+        || audit.completed_at < since || audit.completed_at > f.now
+        || audit.open_pr_index_version == 0 || f.open_pr_index_version == 0
+        || audit.open_pr_index_version != f.open_pr_index_version {
+        blockers.push("stale, incomplete or unverified overlap audit".into());
+    }
+    let mut candidates = BTreeSet::new();
+    for c in &audit.candidates {
+        if c.repository.trim().is_empty() || c.pr_number == 0
+            || !candidates.insert((c.repository.to_lowercase(), c.pr_number))
+            || c.rationale.trim().is_empty() {
+            blockers.push("invalid or duplicate overlap disposition evidence".into());
+        }
+        if c.disposition == OverlapDisposition::Unresolved {
+            blockers.push(format!("unresolved competing PR: {}/{}", c.repository, c.pr_number));
+        }
+    }
+}
+pub fn review_window(ready_since: u64, now: u64) -> ReviewWindow {
+    let age = now.saturating_sub(ready_since);
     if age < THREE_DAYS { ReviewWindow::StrictInitial }
     else if age < TEN_DAYS { ReviewWindow::Accelerated }
     else { ReviewWindow::StrictRenewed }
 }
 pub fn evaluate(f: &Facts) -> Decision {
     let mut blockers = Vec::<String>::new();
-    let window = review_window(f.created_at, f.now);
+    let cycle = ready_cycle_start(f);
+    if let Err(err) = &cycle { blockers.push((*err).into()); }
+    let ready_since = cycle.ok().flatten();
+    let window = ready_since.map_or(ReviewWindow::Draft, |start| review_window(start, f.now));
     if f.repository_id == 0 || f.pr_number == 0 || f.author_id == 0
         || !valid_git_oid(&f.head_sha) {
         blockers.push("invalid PR identity".into());
     }
     if f.now < f.created_at { blockers.push("future PR creation timestamp".into()); }
     if f.draft { blockers.push("draft PR".into()); }
+    if !f.labels_verified { blockers.push("unverified PR labels".into()); }
+    if has_draft_hold(f) { blockers.push("keep-draft/not-ready label prevents merge".into()); }
+    if window == ReviewWindow::Accelerated {
+        if let Some(start) = ready_since { check_overlap_audit(f, start, &mut blockers); }
+    }
     if !f.mergeable { blockers.push("merge conflicts or unconfirmed mergeability".into()); }
     if f.on_hold { blockers.push("explicit hold".into()); }
     if f.critical_risk { blockers.push("critical safety risk".into()); }
@@ -157,9 +261,10 @@ pub fn evaluate(f: &Facts) -> Decision {
 
     match window {
         ReviewWindow::StrictInitial | ReviewWindow::StrictRenewed => {
+            let start = ready_since.unwrap_or(f.created_at);
             let since = if window == ReviewWindow::StrictRenewed {
-                f.created_at.saturating_add(TEN_DAYS)
-            } else { f.created_at };
+                start.saturating_add(TEN_DAYS)
+            } else { start };
             for id in [ORESOFTWARE, THE1MILLS] {
                 if !human_approved(id, since) {
                     blockers.push(format!("missing current, timely human approval from {}", id));
@@ -172,15 +277,32 @@ pub fn evaluate(f: &Facts) -> Decision {
             }
         }
         ReviewWindow::Accelerated => {
-            let any_human = humans.keys().any(|&id| human_approved(id, f.created_at));
+            let start = ready_since.unwrap_or(f.created_at);
+            let any_human = humans.keys().any(|&id| human_approved(id, start));
             let any_ai = [AiProvider::OpenAi, AiProvider::Anthropic].iter()
-                .copied().any(|p| ai_approved(p, f.created_at));
+                .copied().any(|p| ai_approved(p, start));
             if !any_human && !any_ai {
                 blockers.push("fast lane requires one verified independent human or AI approval".into());
             }
         }
+        ReviewWindow::Draft => {}
     }
     Decision { pass: blockers.is_empty(), window, blockers }
+}
+
+/// Advisory decision for an authorized draft recovery service, NOT a Ready
+/// transition. No four-party reviews are required to *become* reviewable.
+pub fn evaluate_draft_promotion(f: &Facts) -> (bool, Vec<String>) {
+    let mut blockers = Vec::new();
+    if !f.draft { blockers.push("PR is already ready".into()); }
+    if let Err(err) = ready_cycle_start(f) { blockers.push(err.into()); }
+    if !f.labels_verified { blockers.push("unverified PR labels".into()); }
+    if has_draft_hold(f) { blockers.push("keep-draft/not-ready label blocks promotion".into()); }
+    if f.on_hold || f.critical_risk { blockers.push("explicit hold or critical risk".into()); }
+    if !f.mergeable { blockers.push("unresolved base-branch conflicts".into()); }
+    if !f.draft_work_complete { blockers.push("draft implementation not ready".into()); }
+    check_overlap_audit(f, f.created_at, &mut blockers);
+    (blockers.is_empty(), blockers)
 }
 
 #[cfg(test)]
@@ -197,8 +319,13 @@ mod tests {
             head_sha: SHA.into(), succeeded: true, verified_source: true }
     }
     fn facts(age: u64) -> Facts {
-        Facts { repository_id: 777, pr_number: 42, created_at: T, now: T + age,
-            author_id: 999, head_sha: SHA.into(), draft: false,
+        Facts { repository_id: 777, pr_number: 42, created_at: T,
+            created_as_draft: false, lifecycle_complete: true, readiness_events: vec![],
+            now: T + age, author_id: 999, head_sha: SHA.into(), draft: false,
+            labels_verified: true, labels: vec![], draft_work_complete: true,
+            open_pr_index_version: 1,
+            overlap_audit: Some(OverlapAudit { head_sha: SHA.into(), completed_at: T,
+                open_pr_index_version: 1, verified_source: true, candidates: vec![] }),
             mergeable: true, on_hold: false, critical_risk: false, github_rules_satisfied: true,
             human_reviews: vec![human(ORESOFTWARE, T + 1), human(THE1MILLS, T + 2)],
             ai_reviews: vec![machine(AiProvider::OpenAi, 11, T + 3),
@@ -384,4 +511,149 @@ mod tests {
             succeeded: true, verified_source: false });
         assert!(!evaluate(&f).pass);
     }
+    #[test] fn draft_opened_long_ago_gets_new_strict_cycle_on_ready() {
+        let mut f = facts(TEN_DAYS + 45);
+        f.created_as_draft = true;
+        f.readiness_events = vec![ReadinessEvent { event_id: 1, at: T + TEN_DAYS,
+            state: ReadinessState::Ready }];
+        assert_eq!(ready_cycle_start(&f), Ok(Some(T + TEN_DAYS)));
+        assert_eq!(evaluate(&f).window, ReviewWindow::StrictInitial);
+        assert!(!evaluate(&f).pass); // Old creation-era reviews are not current-cycle approvals.
+    }
+    #[test] fn ready_to_draft_to_ready_restarts_clock() {
+        let mut f = facts(TEN_DAYS + THREE_DAYS - 1);
+        f.readiness_events = vec![
+            ReadinessEvent { event_id: 1, at: T + 10, state: ReadinessState::Draft },
+            ReadinessEvent { event_id: 2, at: T + TEN_DAYS, state: ReadinessState::Ready },
+        ];
+        assert_eq!(evaluate(&f).window, ReviewWindow::StrictInitial);
+        assert!(!evaluate(&f).pass);
+        f.now = T + TEN_DAYS + THREE_DAYS;
+        f.human_reviews = vec![human(333, T + TEN_DAYS + 2)];
+        f.ai_reviews.clear();
+        f.overlap_audit.as_mut().unwrap().completed_at = T + TEN_DAYS;
+        assert_eq!(evaluate(&f).window, ReviewWindow::Accelerated);
+        assert!(evaluate(&f).pass);
+    }
+    #[test] fn repeated_draft_cycle_cannot_reuse_old_fast_lane_approval() {
+        let mut f = facts(TEN_DAYS + THREE_DAYS);
+        f.readiness_events = vec![
+            ReadinessEvent { event_id: 1, at: T + 10, state: ReadinessState::Draft },
+            ReadinessEvent { event_id: 2, at: T + TEN_DAYS, state: ReadinessState::Ready },
+        ];
+        f.overlap_audit.as_mut().unwrap().completed_at = T + TEN_DAYS;
+        f.human_reviews = vec![human(333, T + 20)];
+        f.ai_reviews.clear();
+        assert!(!evaluate(&f).pass);
+    }
+    #[test] fn draft_transition_blocks_merge_and_can_reset_after_new_ready() {
+        let mut f = facts(THREE_DAYS + 10);
+        f.readiness_events.push(ReadinessEvent { event_id: 1, at: T + 20,
+            state: ReadinessState::Draft });
+        f.draft = true;
+        assert_eq!(evaluate(&f).window, ReviewWindow::Draft);
+        assert!(!evaluate(&f).pass);
+    }
+    #[test] fn unknown_or_contradictory_lifecycle_fails_closed() {
+        let mut f = facts(THREE_DAYS + 10);
+        f.lifecycle_complete = false;
+        assert!(!evaluate(&f).pass);
+        f.lifecycle_complete = true;
+        f.created_as_draft = true;
+        assert!(!evaluate(&f).pass);
+        f.created_as_draft = false;
+        f.readiness_events.push(ReadinessEvent { event_id: 1, at: T + 4,
+            state: ReadinessState::Ready });
+        assert!(!evaluate(&f).pass);
+    }
+    #[test] fn transition_reordering_duplicate_and_future_events_rejected() {
+        let mut f = facts(TEN_DAYS + 10);
+        f.readiness_events = vec![
+            ReadinessEvent { event_id: 2, at: T + TEN_DAYS, state: ReadinessState::Draft },
+            ReadinessEvent { event_id: 1, at: T + TEN_DAYS - 1, state: ReadinessState::Ready },
+        ];
+        assert!(!evaluate(&f).pass);
+        f.readiness_events[1] = ReadinessEvent { event_id: 2, at: T + TEN_DAYS + 1,
+            state: ReadinessState::Ready };
+        assert!(!evaluate(&f).pass);
+        f.readiness_events[1].event_id = 3;
+        f.readiness_events[1].at = f.now + 1;
+        assert!(!evaluate(&f).pass);
+    }
+    #[test] fn keep_draft_and_not_ready_block_automated_merge() {
+        let mut f = facts(THREE_DAYS + 10);
+        f.labels.push("keep-draft".into());
+        assert!(!evaluate(&f).pass);
+        f.labels = vec!["NOT-READY".into()];
+        assert!(!evaluate(&f).pass);
+        f.labels.clear(); f.labels_verified = false;
+        assert!(!evaluate(&f).pass);
+    }
+    #[test] fn missing_stale_or_unverified_overlap_blocks_fast_lane() {
+        let mut f = facts(THREE_DAYS + 10);
+        f.overlap_audit = None;
+        assert!(!evaluate(&f).pass);
+        f.overlap_audit = facts(10).overlap_audit;
+        f.overlap_audit.as_mut().unwrap().verified_source = false;
+        assert!(!evaluate(&f).pass);
+        f.overlap_audit.as_mut().unwrap().verified_source = true;
+        f.open_pr_index_version = 2;
+        assert!(!evaluate(&f).pass);
+        f.open_pr_index_version = 1;
+        f.head_sha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".into();
+        f.ci_runs[0].head_sha = f.head_sha.clone();
+        assert!(!evaluate(&f).pass);
+    }
+    #[test] fn unresolved_overlap_blocks_until_competing_pr_is_integrated() {
+        let mut f = facts(THREE_DAYS + 10);
+        let a = f.overlap_audit.as_mut().unwrap();
+        a.candidates.push(OverlapCandidate { repository: "atto-lang/atto-source.rs".into(),
+            pr_number: 123, disposition: OverlapDisposition::Unresolved,
+            rationale: "Conflicting parser feature".into() });
+        assert!(!evaluate(&f).pass);
+        f.overlap_audit.as_mut().unwrap().candidates[0].disposition =
+            OverlapDisposition::Incorporated;
+        assert!(evaluate(&f).pass);
+    }
+    #[test] fn duplicate_overlap_candidate_and_empty_rationale_fail() {
+        let mut f = facts(THREE_DAYS + 10);
+        let c = OverlapCandidate { repository: "org/repo".into(), pr_number: 7,
+            disposition: OverlapDisposition::Independent, rationale: String::new() };
+        f.overlap_audit.as_mut().unwrap().candidates.push(c.clone());
+        assert!(!evaluate(&f).pass);
+        f.overlap_audit.as_mut().unwrap().candidates[0].rationale = "Different API".into();
+        f.overlap_audit.as_mut().unwrap().candidates.push(c);
+        assert!(!evaluate(&f).pass);
+    }
+    #[test] fn draft_promotion_hold_labels_and_preflight() {
+        let mut f = facts(10);
+        f.created_as_draft = true;
+        f.draft = true;
+        assert!(evaluate_draft_promotion(&f).0);
+        assert!(!evaluate(&f).pass);
+        f.labels.push("keep-draft".into());
+        assert!(!evaluate_draft_promotion(&f).0);
+        f.labels = vec!["not-ready".into()];
+        assert!(!evaluate_draft_promotion(&f).0);
+        f.labels.clear();
+        f.draft_work_complete = false;
+        assert!(!evaluate_draft_promotion(&f).0);
+        f.draft_work_complete = true;
+        f.overlap_audit = None;
+        assert!(!evaluate_draft_promotion(&f).0);
+    }
+    #[test] fn draft_promotion_recovers_after_overlap_resolution() {
+        let mut f = facts(10);
+        f.created_as_draft = true;
+        f.draft = true;
+        f.overlap_audit.as_mut().unwrap().candidates.push(
+            OverlapCandidate { repository: "org/competing".into(), pr_number: 2,
+                disposition: OverlapDisposition::Unresolved,
+                rationale: "Competes with this draft".into() });
+        assert!(!evaluate_draft_promotion(&f).0);
+        f.overlap_audit.as_mut().unwrap().candidates[0].disposition =
+            OverlapDisposition::Updated;
+        assert!(evaluate_draft_promotion(&f).0);
+    }
+
 }
