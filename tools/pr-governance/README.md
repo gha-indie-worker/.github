@@ -1,48 +1,69 @@
-# Time-windowed PR governance — standalone Rust evaluator (not yet enforcement)
+# Readiness-cycled PR governance — standalone Rust evaluator (not yet enforcement)
 
-The Rust engine in `src/lib.rs` evaluates verified GitHub PR snapshots against the **72-hour / 240-hour review windows** for `atto-lang` and `ores-truffle-oreslang`. It is a pure, non-enforcing prototype; no live GitHub App, repository ruleset or required review-policy check is installed by this PR.
+The Rust policy engine in `src/lib.rs` models the merge-first review windows for `atto-lang` and `ores-truffle-oreslang` using **ready-for-review-cycle age**, not raw pull-request age. This PR **does not** install a GitHub App, required status check, cross-repo draft agent, or ruleset enforcement.
 
-## Review contract
+## Authoritative readiness cycle
 
-| Age from immutable `pull_request.created_at` (UTC) | Reviews required |
+- A PR opened **ready** starts its first cycle at its GitHub creation timestamp.
+- A PR opened **draft** starts no review clock until the first verified `ready_for_review` transition.
+- A `converted_to_draft` event immediately ends the active cycle. The next `ready_for_review` event starts a **fresh** 72/240-hour review cycle; approvals from the previous cycle are not reusable.
+- Neither pushes, rebases, labels, nor ordinary PR updates restart the clock.
+- The trusted integration must supply the immutable creation timestamp, original draft status, **complete authenticated ordered** transition history, current draft state and event IDs. Unknown or contradictory histories fail closed. Don't toggle draft merely to avoid renewed reviews.
+
+| Current ready-cycle age | Review requirement |
 | --- | --- |
-| `0 <= age < 72h` | Two named humans: authenticated `ORESoftware` (GitHub ID 11139560) and `the1mills` (ID 2148448), plus two independently verified AI family approvals: OpenAI Codex/ChatGPT and Anthropic Claude/Opus |
-| `72h <= age < 240h` | Any one independent write-authorized human review **or** one authenticated successful AI-family review. No explicit human override event is required. |
-| `age >= 240h` | **Fresh** post-240h approvals from both named humans and both AI families; earlier approvals alone do not count. |
+| `0 <= age < 72h` | Both designated humans (`ORESoftware`, GitHub ID 11139560 and `the1mills`, ID 2148448) **plus** verified OpenAI Codex/ChatGPT and Anthropic Claude/Opus reviews |
+| `72h <= age < 240h` | One verified independent human or AI approval **and** a fresh attested competing/overlapping PR audit |
+| `age >= 240h` | **Fresh** post-240-hour reviews from all four designated parties |
 
-Every counted review must bind the exact current head commit SHA. Newer negative/dismissed, unverified or stale evidence supersedes older approvals. The policy must be recomputed immediately before merging and on head/review/check changes. A reviewer may not approve their own PR; when a required designated human is the author, only an independent authorized substitution can resolve the block. Do not silently waive it.
+Reviews always bind the current exact head SHA and must be submitted within the current ready cycle. The evaluator enforces the transition boundary at the exact second. Author self-approval, stale approvals and unverifiable reviews do not qualify. A required designated reviewer who authored the PR needs an authorized substitute, not a silent exception.
 
-## Common gate, every age
+## Fast-lane competing PR audit
 
-- GitHub must confirm no merge conflict, not draft, not on hold, no critical risk and all protections satisfied.
-- All configured required CI checks must actually succeed on the current exact SHA from expected App IDs. Pending, failed, skipped, neutral, ambiguous, absent or stale CI **does not** count.
-- Unresolved changes-requested must be cleared, and approval evidence must be current and verified.
-- Never bypass CODEOWNERS, branch protection, rulesets, protected status checks or security hold.
-- Detect replay/duplicate reviewer IDs and untrusted evidence; repository identity and current PR age/head are supplied by a trusted integration, not PR-controlled files or labels.
+The reviewer/merger must search other relevant open PRs (including drafts and interdependent repositories) by files, symbols, features, APIs, issues and diffs. If changes overlap, **update this PR or the competing PR before merge** to preserve useful functionality and tests. An overlap record identifies candidates and explains their disposition (`incorporated`, `updated`, `superseded`, `independent`, or `unresolved`). **Unresolved overlap blocks fast-lane merges.**
 
-The library models these GitHub facts as booleans and arrays to facilitate deterministic testing. **None of those fields are intrinsically trusted**: an installed integration must verify every assertion against authoritative GitHub APIs, signed webhook events and authenticated AI provenance. Treat false, unknown, or unavailable evidence as blocking. AI families must be independently authenticated; GitHub comments or unverified bot names are not approvals.
+The evaluator requires a provider-verified overlap audit bound to current head SHA and the latest trusted open-PR-index snapshot version. Changes to related PRs must invalidate earlier audit snapshots. The Rust model does not conduct remote PR searches itself; a future trusted integration must collect, verify and attach that evidence. As with all input facts, no PR-controlled flag or comment is inherently authoritative.
 
-## Pending production enforcement
+## Draft triage and safe automatic promotion
 
-1. Implement or install a trusted least-privilege GitHub App using signed webhook validation and direct GitHub API reads for PR metadata, protections, current mergeability, reviews, and CI.
-2. Authenticate OpenAI/Anthropic AI-provider evidence and publish a non-spoofable `review-policy` check bound to the head or merge-queue SHA.
-3. Re-evaluate at exactly 72h and 240h, as well as after PR/commit/review/check/label events; fail closed if any evidence cannot be verified.
-4. Reconcile native branch-protection/CODEOWNERS requirements in each authorized repository: native fixed reviewer counts cannot express these age windows by themselves.
-5. Pilot in report-only mode, test authorization, then enable reviewed check enforcement. Do not disable existing protections without separate authorization.
-6. Handle designated-reviewer PR authors via an explicitly approved independent substitution.
-7. If source Actions minutes are insufficient, use a token-free mirror on an authorized test organization with source-tree/per-blob SHA verification. Distinguish unit tests from actual GitHub App enforcement.
+Draft PRs do not accrue review age. Agents must routinely assess drafts, finish missing work, resolve semantic conflicts, compare competing work and promote promptly once reviewable. The `evaluate_draft_promotion` function returns a **non-enforcing advisory decision** for a trusted draft recovery agent. It requires: draft state verified against timeline; readiness attested by an authorized source; semantic mergeability; no explicit hold/critical risk; a current verified overlap audit; and no hold label. Full CI required for merging can run after Ready transition.
 
-## Test invocation
+**Label contract:**
+
+- `keep-draft` — never automatically promote; only an authorized human/owner can remove this persistent hold.
+- `not-ready` — never automatically promote while the blocker remains; removal must be authorized.
+- Either label also blocks **automatic merge** even if the PR was manually marked ready.
+- Optional `overlap-review-needed`, `needs-tests` and `blocked` can guide triage but are not substitutes for authenticated evidence.
+
+The automation must re-read labels from GitHub **immediately before the state transition**, not from a stale workflow payload, and must never automatically clear hold labels. **This PR does not create labels or deploy an automatic draft promoter.**
+
+## Other merge gates
+
+- GitHub must affirm ready status, mergeability, protections and no outstanding blocking reviews, explicit holds, or critical risk.
+- All configured required CI checks must succeed on the exact current head/integration SHA from expected App IDs. Missing, skipped, pending, neutral, ambiguous or failing checks block merge.
+- Comply with native CODEOWNERS, GitHub branch protection and rulesets; no bypasses to force fast merges.
+- An installed GitHub App must independently verify external AI-family attestations, lifecycle evidence, labels, open-PR index, review chronology, and mergeability. All policy facts are **untrusted until verified**.
+- Evaluate again on review, SHA, CI, label, competing-PR landscape, draft/ready events, and before the final atomic merge. Use `expected_head_sha` on merge.
+
+## Tests
 
 ```sh
 rustc --edition=2021 --deny warnings --test tools/pr-governance/src/lib.rs -o /tmp/pr-governance-tests
 /tmp/pr-governance-tests
+rustc --edition=2021 --deny warnings -O --test tools/pr-governance/src/lib.rs -o /tmp/pr-governance-tests-opt
+/tmp/pr-governance-tests-opt
 ```
 
-The read-only Actions workflow executes normal and optimized Rust unit tests. **A green workflow verifies this isolated evaluator only; it is not proof of deployed cross-organization review enforcement.**
+The normal and optimized workflow suites cover 72/240-hour exact boundaries, late initial Ready, multiple draft cycles, historic-review invalidation, label holds, draft promotion, stale/unknown overlap evidence, competing-PR reconciliation, CI and review spoofing. A green run verifies **only this deterministic model**.
 
-## Scope
+## Deployment still pending
 
-This change does not modify organization rulesets, GitHub App installations, branch protection, source CI, reviewer permissions, or hosted merge governance. The two canonical organization policy files are:
+1. Build a trusted least-privilege GitHub App with authenticated webhook events and full PR-readiness lifecycle reconciliation, plus current label and cross-repo PR-index scans.
+2. Provide independently verified OpenAI/Anthropic review evidence; emit a trusted required `review-policy` status bound to head or merge-queue SHA.
+3. Implement draft triage and auto-promotion that honors `keep-draft` / `not-ready`, with human-visible disposition for overlapping PRs. Provision label definitions explicitly in each target repo; GitHub labels alone do not implement the behavior.
+4. Integrate rulesets, stage in report-only mode and seek separate authorization before changing protections.
+5. If original org lacks Actions budget, run exact Git-tree mirrored tests in an authorized alternate org with per-blob SHA verification and no source secrets.
+
+Canonical policies:
 - https://github.com/atto-lang/.github/blob/main/AGENTS.md
 - https://github.com/ores-truffle-oreslang/.github/blob/main/AGENTS.md
