@@ -141,9 +141,21 @@ pub fn ready_cycle_start(f: &Facts) -> Result<Option<u64>, &'static str> {
     }
     Ok(since)
 }
+/// Start of the CURRENT consecutive Draft period; Ready age is independent.
+pub fn draft_cycle_start(f: &Facts) -> Result<Option<u64>, &'static str> {
+    ready_cycle_start(f)?;
+    if !f.draft { return Ok(None); }
+    let mut start = if f.created_as_draft { Some(f.created_at) } else { None };
+    for event in &f.readiness_events {
+        start = if event.state == ReadinessState::Draft {
+            Some(event.at)
+        } else { None };
+    }
+    start.map(Some).ok_or("missing current draft cycle start")
+}
 fn has_draft_hold(f: &Facts) -> bool {
     f.labels.iter().any(|label| {
-        label.eq_ignore_ascii_case("keep-draft") || label.eq_ignore_ascii_case("not-ready")
+        label.eq_ignore_ascii_case("keep-as-draft") || label.eq_ignore_ascii_case("keep-draft") || label.eq_ignore_ascii_case("not-ready")
     })
 }
 fn check_overlap_audit(f: &Facts, since: u64, blockers: &mut Vec<String>) {
@@ -188,7 +200,7 @@ pub fn evaluate(f: &Facts) -> Decision {
     if f.now < f.created_at { blockers.push("future PR creation timestamp".into()); }
     if f.draft { blockers.push("draft PR".into()); }
     if !f.labels_verified { blockers.push("unverified PR labels".into()); }
-    if has_draft_hold(f) { blockers.push("keep-draft/not-ready label prevents merge".into()); }
+    if has_draft_hold(f) { blockers.push("keep-as-draft/keep-draft/not-ready label prevents merge".into()); }
     if window == ReviewWindow::Accelerated {
         if let Some(start) = ready_since { check_overlap_audit(f, start, &mut blockers); }
     }
@@ -295,12 +307,43 @@ pub fn evaluate(f: &Facts) -> Decision {
 pub fn evaluate_draft_promotion(f: &Facts) -> (bool, Vec<String>) {
     let mut blockers = Vec::new();
     if !f.draft { blockers.push("PR is already ready".into()); }
-    if let Err(err) = ready_cycle_start(f) { blockers.push(err.into()); }
+    match draft_cycle_start(f) {
+        Ok(Some(start)) => {
+            if f.now.saturating_sub(start) < THREE_DAYS {
+                blockers.push("current draft cycle is younger than 72 hours".into());
+            }
+        }
+        Ok(None) => blockers.push("missing active draft cycle".into()),
+        Err(err) => blockers.push(err.into()),
+    }
     if !f.labels_verified { blockers.push("unverified PR labels".into()); }
-    if has_draft_hold(f) { blockers.push("keep-draft/not-ready label blocks promotion".into()); }
+    if has_draft_hold(f) { blockers.push("keep-as-draft/keep-draft/not-ready label blocks promotion".into()); }
     if f.on_hold || f.critical_risk { blockers.push("explicit hold or critical risk".into()); }
     if !f.mergeable { blockers.push("unresolved base-branch conflicts".into()); }
     if !f.draft_work_complete { blockers.push("draft implementation not ready".into()); }
+    // Draft-to-Ready at 72h requires real, exact-head successful material CI.
+    if f.required_ci.is_empty() { blockers.push("no required CI configured".into()); }
+    let mut required_names = BTreeSet::new();
+    for required in &f.required_ci {
+        if required.name.trim().is_empty() || required.app_id == 0
+            || required.name == "review-policy" || !required_names.insert(&required.name) {
+            blockers.push(format!("invalid required CI configuration: {}", required.name));
+            continue;
+        }
+        let matches: Vec<_> = f.ci_runs.iter().filter(|run| {
+            run.name == required.name && run.app_id == required.app_id
+                && run.head_sha == f.head_sha
+        }).collect();
+        if matches.len() != 1 || matches[0].state != CiState::Success {
+            blockers.push(format!("draft CI not successful on current head: {}", required.name));
+        }
+        if f.ci_runs.iter().any(|run| {
+            run.name == required.name && run.head_sha == f.head_sha
+                && run.app_id != required.app_id
+        }) {
+            blockers.push(format!("conflicting CI provider for {}", required.name));
+        }
+    }
     check_overlap_audit(f, f.created_at, &mut blockers);
     (blockers.is_empty(), blockers)
 }
@@ -626,7 +669,7 @@ mod tests {
         assert!(!evaluate(&f).pass);
     }
     #[test] fn draft_promotion_hold_labels_and_preflight() {
-        let mut f = facts(10);
+        let mut f = facts(THREE_DAYS);
         f.created_as_draft = true;
         f.draft = true;
         assert!(evaluate_draft_promotion(&f).0);
@@ -643,7 +686,7 @@ mod tests {
         assert!(!evaluate_draft_promotion(&f).0);
     }
     #[test] fn draft_promotion_recovers_after_overlap_resolution() {
-        let mut f = facts(10);
+        let mut f = facts(THREE_DAYS);
         f.created_as_draft = true;
         f.draft = true;
         f.overlap_audit.as_mut().unwrap().candidates.push(
@@ -654,6 +697,87 @@ mod tests {
         f.overlap_audit.as_mut().unwrap().candidates[0].disposition =
             OverlapDisposition::Updated;
         assert!(evaluate_draft_promotion(&f).0);
+    }
+
+    #[test] fn draft_one_second_before_72h_cannot_promote() {
+        let mut f = facts(THREE_DAYS - 1);
+        f.created_as_draft = true; f.draft = true;
+        assert!(!evaluate_draft_promotion(&f).0);
+    }
+    #[test] fn draft_exactly_72h_with_green_ci_promotes_without_approvals() {
+        let mut f = facts(THREE_DAYS);
+        f.created_as_draft = true; f.draft = true;
+        f.human_reviews.clear(); f.ai_reviews.clear();
+        assert_eq!(draft_cycle_start(&f), Ok(Some(T)));
+        assert!(evaluate_draft_promotion(&f).0);
+        assert!(!evaluate(&f).pass);
+    }
+    #[test] fn canonical_keep_as_draft_blocks_even_green_old_draft() {
+        let mut f = facts(THREE_DAYS + 100);
+        f.created_as_draft = true; f.draft = true;
+        f.labels.push("KEEP-AS-DRAFT".into());
+        assert!(!evaluate_draft_promotion(&f).0);
+        f.draft = false;
+        f.readiness_events.push(ReadinessEvent {
+            event_id: 101, at: T + THREE_DAYS, state: ReadinessState::Ready
+        });
+        assert!(!evaluate(&f).pass);
+    }
+    #[test] fn legacy_keep_draft_and_not_ready_block_promotion() {
+        let mut f = facts(THREE_DAYS + 100);
+        f.created_as_draft = true; f.draft = true;
+        for hold in ["keep-draft", "not-ready"] {
+            f.labels = vec![hold.into()];
+            assert!(!evaluate_draft_promotion(&f).0);
+        }
+    }
+    #[test] fn draft_below_72_does_not_age_from_original_creation_after_redraft() {
+        let mut f = facts(TEN_DAYS + THREE_DAYS - 1);
+        f.readiness_events.push(ReadinessEvent {
+            event_id: 11, at: T + TEN_DAYS, state: ReadinessState::Draft
+        });
+        f.draft = true;
+        assert_eq!(draft_cycle_start(&f), Ok(Some(T + TEN_DAYS)));
+        assert!(!evaluate_draft_promotion(&f).0);
+        f.now += 1;
+        assert!(evaluate_draft_promotion(&f).0);
+    }
+    #[test] fn draft_failed_pending_skipped_missing_ci_cannot_promote() {
+        let mut f = facts(THREE_DAYS + 3);
+        f.created_as_draft = true; f.draft = true;
+        for state in [CiState::Failure, CiState::Pending, CiState::Skipped, CiState::Neutral] {
+            f.ci_runs[0].state = state;
+            assert!(!evaluate_draft_promotion(&f).0);
+        }
+        f.ci_runs.clear();
+        assert!(!evaluate_draft_promotion(&f).0);
+    }
+    #[test] fn draft_stale_and_wrong_app_ci_cannot_promote() {
+        let mut f = facts(THREE_DAYS + 3);
+        f.created_as_draft = true; f.draft = true;
+        f.ci_runs[0].head_sha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb".into();
+        assert!(!evaluate_draft_promotion(&f).0);
+        f.ci_runs[0].head_sha = SHA.into();
+        f.ci_runs[0].app_id = 102;
+        assert!(!evaluate_draft_promotion(&f).0);
+    }
+    #[test] fn draft_promotion_missing_label_evidence_fails_closed() {
+        let mut f = facts(THREE_DAYS + 1);
+        f.created_as_draft = true; f.draft = true;
+        f.labels_verified = false;
+        assert!(!evaluate_draft_promotion(&f).0);
+    }
+    #[test] fn on_promote_ready_review_clock_starts_at_zero() {
+        let mut f = facts(TEN_DAYS + 100);
+        f.created_as_draft = true; f.draft = true;
+        assert!(evaluate_draft_promotion(&f).0);
+        f.draft = false;
+        f.readiness_events.push(ReadinessEvent {
+            event_id: 15, at: f.now, state: ReadinessState::Ready
+        });
+        f.human_reviews.clear(); f.ai_reviews.clear();
+        assert_eq!(evaluate(&f).window, ReviewWindow::StrictInitial);
+        assert!(!evaluate(&f).pass);
     }
 
 }
