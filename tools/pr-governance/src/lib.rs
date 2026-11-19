@@ -319,8 +319,9 @@ pub fn evaluate_draft_promotion(f: &Facts) -> (bool, Vec<String>) {
     if !f.labels_verified { blockers.push("unverified PR labels".into()); }
     if has_draft_hold(f) { blockers.push("keep-as-draft/keep-draft/not-ready label blocks promotion".into()); }
     if f.on_hold || f.critical_risk { blockers.push("explicit hold or critical risk".into()); }
-    if !f.mergeable { blockers.push("unresolved base-branch conflicts".into()); }
-    if !f.draft_work_complete { blockers.push("draft implementation not ready".into()); }
+    // Readiness is not mergeability: base conflicts and overlapping PRs are
+    // triaged/recorded but are mandatory RESOLUTION gates before merge, not
+    // reasons to keep a green, unlabelled PR in Draft forever.
     // Draft-to-Ready at 72h requires real, exact-head successful material CI.
     if f.required_ci.is_empty() { blockers.push("no required CI configured".into()); }
     let mut required_names = BTreeSet::new();
@@ -344,7 +345,9 @@ pub fn evaluate_draft_promotion(f: &Facts) -> (bool, Vec<String>) {
             blockers.push(format!("conflicting CI provider for {}", required.name));
         }
     }
-    check_overlap_audit(f, f.created_at, &mut blockers);
+    // Run the overlap audit during draft recovery, but do NOT silently
+    // postpone the promised 72h green Draft-to-Ready transition: any
+    // unresolved overlap blocks a subsequent accelerated MERGE, not Ready.
     (blockers.is_empty(), blockers)
 }
 
@@ -680,10 +683,9 @@ mod tests {
         assert!(!evaluate_draft_promotion(&f).0);
         f.labels.clear();
         f.draft_work_complete = false;
-        assert!(!evaluate_draft_promotion(&f).0);
-        f.draft_work_complete = true;
+        assert!(evaluate_draft_promotion(&f).0);
         f.overlap_audit = None;
-        assert!(!evaluate_draft_promotion(&f).0);
+        assert!(evaluate_draft_promotion(&f).0);
     }
     #[test] fn draft_promotion_recovers_after_overlap_resolution() {
         let mut f = facts(THREE_DAYS);
@@ -693,7 +695,7 @@ mod tests {
             OverlapCandidate { repository: "org/competing".into(), pr_number: 2,
                 disposition: OverlapDisposition::Unresolved,
                 rationale: "Competes with this draft".into() });
-        assert!(!evaluate_draft_promotion(&f).0);
+        assert!(evaluate_draft_promotion(&f).0); // overlap does not block Ready
         f.overlap_audit.as_mut().unwrap().candidates[0].disposition =
             OverlapDisposition::Updated;
         assert!(evaluate_draft_promotion(&f).0);
@@ -778,6 +780,20 @@ mod tests {
         f.human_reviews.clear(); f.ai_reviews.clear();
         assert_eq!(evaluate(&f).window, ReviewWindow::StrictInitial);
         assert!(!evaluate(&f).pass);
+    }
+
+    #[test] fn draft_conflicts_do_not_block_ready_when_green_and_unheld() {
+        let mut f = facts(THREE_DAYS);
+        f.created_as_draft = true; f.draft = true;
+        f.mergeable = false;
+        assert!(evaluate_draft_promotion(&f).0);
+        assert!(!evaluate(&f).pass);
+    }
+    #[test] fn draft_no_overlap_audit_still_promotes_after_green_ci() {
+        let mut f = facts(THREE_DAYS);
+        f.created_as_draft = true; f.draft = true;
+        f.overlap_audit = None;
+        assert!(evaluate_draft_promotion(&f).0);
     }
 
 }
