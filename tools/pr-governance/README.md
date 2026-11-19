@@ -25,7 +25,7 @@ The **Draft clock** is separate from the Ready review clock:
 - If a Ready PR was legitimately converted back to Draft, its new Draft cycle starts at the latest verified `converted_to_draft` transition.
 - At the first authorized check at or after **72 consecutive hours in that Draft cycle**, automatically mark Ready when substantive required/material CI has **actually succeeded on the exact current head SHA** and there is no blocking label.
 - `keep-as-draft` is the canonical persistent block. `not-ready` also blocks promotion. Legacy `keep-draft` remains a blocking alias to prevent unexpected transitions. Holds must not be automatically removed.
-- Investigate overlapping Draft/Ready PRs and reconcile implementations rather than discarding unique work. Explicit holds, unresolved critical safety issues or missing authorized permissions still block.
+- Investigate overlapping Draft/Ready PRs and reconcile implementations rather than discarding unique work. **An unresolved competing PR or base-branch merge conflict alone does not postpone Draft→Ready** when required tests are green and no hold label exists; resolve them before a later merge. Critical safety holds and missing GitHub permissions still block.
 - If tests are missing, failed, skipped, pending or stale, keep the PR in Draft and retry once tests pass. A push/test rerun does not restart a Draft cycle.
 - When the automation marks Ready, the Ready review clock starts at **0**, requiring the full initial four-party review until 72 Ready hours elapse. Three Draft days NEVER grant the one-review fast lane.
 
