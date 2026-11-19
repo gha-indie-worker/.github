@@ -1,51 +1,48 @@
-# Age-aware PR governance: non-enforcing prototype
+# Time-windowed PR governance — standalone Rust evaluator (not yet enforcement)
 
-The Rust engine in src/lib.rs implements the 72-hour review policy as pure decision logic. No GitHub App or enforcement is deployed by this change.
+The Rust engine in `src/lib.rs` evaluates verified GitHub PR snapshots against the **72-hour / 240-hour review windows** for `atto-lang` and `ores-truffle-oreslang`. It is a pure, non-enforcing prototype; no live GitHub App, repository ruleset or required review-policy check is installed by this PR.
 
-## Contract
+## Review contract
 
-- At or below 72 hours: require valid approvals from ORESoftware (GitHub ID 11139560) AND the1mills (ID 2148448), plus verified independent OpenAI and Anthropic reviews on the exact current head.
-- After 72 hours: a designated, independent write-capable human may request an explicit authenticated exception, bound to the immutable GitHub repository ID, exact PR, head SHA, and a unique auditable event ID. Then require one named human approval and no AI reviews.
-- Always: required CI must be successful for the exact current head from expected source App IDs; drafts, stale or dismissed reviews, changes requested, missing or duplicate checks, and self-approval block. Replayed or revoked overrides, newer failed/unverified AI attestations, and duplicate required CI names across App IDs also block.
-- All existing GitHub branch rules, CODEOWNERS, security gates, merge queues, CI and environment checks remain authoritative. No routine bypass is authorized.
+| Age from immutable `pull_request.created_at` (UTC) | Reviews required |
+| --- | --- |
+| `0 <= age < 72h` | Two named humans: authenticated `ORESoftware` (GitHub ID 11139560) and `the1mills` (ID 2148448), plus two independently verified AI family approvals: OpenAI Codex/ChatGPT and Anthropic Claude/Opus |
+| `72h <= age < 240h` | Any one independent write-authorized human review **or** one authenticated successful AI-family review. No explicit human override event is required. |
+| `age >= 240h` | **Fresh** post-240h approvals from both named humans and both AI families; earlier approvals alone do not count. |
 
-The trusted backend must independently verify PR creation time, current SHA, write permissions, review chronology, AI provider identity/attestations and each required check from GitHub APIs. Only a trusted GitHub App can set the boolean attestation assertions used by the pure evaluator. Never accept PR labels, comments, PR-supplied JSON or untrusted Actions artifacts as verification.
+Every counted review must bind the exact current head commit SHA. Newer negative/dismissed, unverified or stale evidence supersedes older approvals. The policy must be recomputed immediately before merging and on head/review/check changes. A reviewer may not approve their own PR; when a required designated human is the author, only an independent authorized substitution can resolve the block. Do not silently waive it.
 
-The explicit exception must be created as an authenticated, immutable audit event with actor ID, repository, PR number, timestamp and HEAD SHA. A label alone is insufficient. Crossing 72 hours never implicitly authorizes an exception.
+## Common gate, every age
 
-## Pending production integration
+- GitHub must confirm no merge conflict, not draft, not on hold, no critical risk and all protections satisfied.
+- All configured required CI checks must actually succeed on the current exact SHA from expected App IDs. Pending, failed, skipped, neutral, ambiguous, absent or stale CI **does not** count.
+- Unresolved changes-requested must be cleared, and approval evidence must be current and verified.
+- Never bypass CODEOWNERS, branch protection, rulesets, protected status checks or security hold.
+- Detect replay/duplicate reviewer IDs and untrusted evidence; repository identity and current PR age/head are supplied by a trusted integration, not PR-controlled files or labels.
 
-1. Build and install a cross-organization GitHub App with least-privilege read permissions and checks:write.
-2. Implement webhook signature verification, GitHub API snapshot materialization, AI source App validation, audit event persistence, and a non-spoofable review-policy check.
-3. Re-evaluate on checks, reviews, commits, drafts, merge queues, and after the age threshold. Check merge-group CI for the actual merge-group SHA.
-4. Run observation-mode pilots in authorized organizations and resolve native ruleset conflicts.
-5. Enable reviewed organization/repository rulesets requiring both a minimum native human approval and the named policy App check. Never replace independently mandatory CI with a single aggregate job.
-6. Define an additional trusted human reviewer for PRs authored by one of the two named reviewers; self-approval is never permitted.
-7. Verify real CI and source-tree integrity when running exact-source private mirrors in alternate organizations.
+The library models these GitHub facts as booleans and arrays to facilitate deterministic testing. **None of those fields are intrinsically trusted**: an installed integration must verify every assertion against authoritative GitHub APIs, signed webhook events and authenticated AI provenance. Treat false, unknown, or unavailable evidence as blocking. AI families must be independently authenticated; GitHub comments or unverified bot names are not approvals.
+
+## Pending production enforcement
+
+1. Implement or install a trusted least-privilege GitHub App using signed webhook validation and direct GitHub API reads for PR metadata, protections, current mergeability, reviews, and CI.
+2. Authenticate OpenAI/Anthropic AI-provider evidence and publish a non-spoofable `review-policy` check bound to the head or merge-queue SHA.
+3. Re-evaluate at exactly 72h and 240h, as well as after PR/commit/review/check/label events; fail closed if any evidence cannot be verified.
+4. Reconcile native branch-protection/CODEOWNERS requirements in each authorized repository: native fixed reviewer counts cannot express these age windows by themselves.
+5. Pilot in report-only mode, test authorization, then enable reviewed check enforcement. Do not disable existing protections without separate authorization.
+6. Handle designated-reviewer PR authors via an explicitly approved independent substitution.
+7. If source Actions minutes are insufficient, use a token-free mirror on an authorized test organization with source-tree/per-blob SHA verification. Distinguish unit tests from actual GitHub App enforcement.
 
 ## Test invocation
 
+```sh
 rustc --edition=2021 --deny warnings --test tools/pr-governance/src/lib.rs -o /tmp/pr-governance-tests
 /tmp/pr-governance-tests
+```
 
-The pinned read-only Actions workflow runs these tests. A passing unit test is not proof that a GitHub App has been installed or that merge enforcement works.
+The read-only Actions workflow executes normal and optimized Rust unit tests. **A green workflow verifies this isolated evaluator only; it is not proof of deployed cross-organization review enforcement.**
 
 ## Scope
 
-This PR does not modify organization rulesets, branch protection, CI requirements, GitHub App installations, reviewer permissions, or existing governance text. The fleet rollout is a separate, reviewed change.
-
-## Audit hardening notes
-
-The evaluator checks 40- or 64-hex-character Git object IDs, immutable repository
-identity, explicit non-revoked override event identity, chronological human/AI reviews,
-and ambiguous/duplicate CI contexts. It intentionally refuses to reuse an earlier AI
-pass after a newer failure or unverified result. GitHub App code must use the latest
-provider evidence including any adverse outcomes, and must never trust arbitrary PR
-content or labels to populate these fields.
-
-The current model uses scalar "verified" assertions as placeholders for a trusted
-integration. They are **not cryptographic verification** and must not be sourced
-from a public workflow or pull request. It does not publish a check or override any
-rule itself. GitHub's native protected-branch checks and review/author restrictions
-always have the final say. The App must also independently verify revocations, head
-changes, and merge-queue SHA checks.
+This change does not modify organization rulesets, GitHub App installations, branch protection, source CI, reviewer permissions, or hosted merge governance. The two canonical organization policy files are:
+- https://github.com/atto-lang/.github/blob/main/AGENTS.md
+- https://github.com/ores-truffle-oreslang/.github/blob/main/AGENTS.md
