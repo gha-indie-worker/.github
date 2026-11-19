@@ -31,3 +31,11 @@ jobs:
         run: |
           set -euo pipefail
           "$RUNNER_TEMP/pr-governance-tests" --nocapture
+      - name: Compile optimized Rust policy tests
+        run: |
+          set -euo pipefail
+          rustc --edition=2021 --deny warnings -O --test tools/pr-governance/src/lib.rs -o "$RUNNER_TEMP/pr-governance-tests-opt"
+      - name: Run optimized adversarial matrix
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/pr-governance-tests-opt" --nocapture

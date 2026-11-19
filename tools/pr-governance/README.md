@@ -5,8 +5,8 @@ The Rust engine in src/lib.rs implements the 72-hour review policy as pure decis
 ## Contract
 
 - At or below 72 hours: require valid approvals from ORESoftware (GitHub ID 11139560) AND the1mills (ID 2148448), plus verified independent OpenAI and Anthropic reviews on the exact current head.
-- After 72 hours: a designated, independent write-capable human may request an explicit authenticated exception, bound to the exact PR and head SHA. Then require one named human approval and no AI reviews.
-- Always: required CI must be successful for the exact current head from expected source App IDs; drafts, stale or dismissed reviews, changes requested, missing or duplicate checks, and self-approval block.
+- After 72 hours: a designated, independent write-capable human may request an explicit authenticated exception, bound to the immutable GitHub repository ID, exact PR, head SHA, and a unique auditable event ID. Then require one named human approval and no AI reviews.
+- Always: required CI must be successful for the exact current head from expected source App IDs; drafts, stale or dismissed reviews, changes requested, missing or duplicate checks, and self-approval block. Replayed or revoked overrides, newer failed/unverified AI attestations, and duplicate required CI names across App IDs also block.
 - All existing GitHub branch rules, CODEOWNERS, security gates, merge queues, CI and environment checks remain authoritative. No routine bypass is authorized.
 
 The trusted backend must independently verify PR creation time, current SHA, write permissions, review chronology, AI provider identity/attestations and each required check from GitHub APIs. Only a trusted GitHub App can set the boolean attestation assertions used by the pure evaluator. Never accept PR labels, comments, PR-supplied JSON or untrusted Actions artifacts as verification.
@@ -33,3 +33,19 @@ The pinned read-only Actions workflow runs these tests. A passing unit test is n
 ## Scope
 
 This PR does not modify organization rulesets, branch protection, CI requirements, GitHub App installations, reviewer permissions, or existing governance text. The fleet rollout is a separate, reviewed change.
+
+## Audit hardening notes
+
+The evaluator checks 40- or 64-hex-character Git object IDs, immutable repository
+identity, explicit non-revoked override event identity, chronological human/AI reviews,
+and ambiguous/duplicate CI contexts. It intentionally refuses to reuse an earlier AI
+pass after a newer failure or unverified result. GitHub App code must use the latest
+provider evidence including any adverse outcomes, and must never trust arbitrary PR
+content or labels to populate these fields.
+
+The current model uses scalar "verified" assertions as placeholders for a trusted
+integration. They are **not cryptographic verification** and must not be sourced
+from a public workflow or pull request. It does not publish a check or override any
+rule itself. GitHub's native protected-branch checks and review/author restrictions
+always have the final say. The App must also independently verify revocations, head
+changes, and merge-queue SHA checks.
