@@ -1,0 +1,41 @@
+name: PR governance policy Rust tests
+on:
+  pull_request:
+    paths:
+      - 'tools/pr-governance/**'
+      - '.github/workflows/pr-governance-policy.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'tools/pr-governance/**'
+      - '.github/workflows/pr-governance-policy.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate-rust-policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout without credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Compile unit tests
+        run: |
+          set -euo pipefail
+          rustc --version
+          rustc --edition=2021 --deny warnings --test tools/pr-governance/src/lib.rs -o "$RUNNER_TEMP/pr-governance-tests"
+      - name: Run adversarial test matrix
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/pr-governance-tests" --nocapture
+      - name: Compile optimized Rust policy tests
+        run: |
+          set -euo pipefail
+          rustc --edition=2021 --deny warnings -O --test tools/pr-governance/src/lib.rs -o "$RUNNER_TEMP/pr-governance-tests-opt"
+      - name: Run optimized adversarial matrix
+        run: |
+          set -euo pipefail
+          "$RUNNER_TEMP/pr-governance-tests-opt" --nocapture
